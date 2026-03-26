@@ -8,12 +8,40 @@ const BACKEND_BASES = [CONFIGURED_BACKEND_BASE, ...FALLBACK_BACKEND_BASES].filte
 );
 
 let resolvedBackendBase = null;
+const GET_CACHE_TTL_MS = 15000;
+const getResponseCache = new Map();
+
+function buildGetCacheKey(path, options) {
+  const method = String(options.method || "GET").toUpperCase();
+  if (method !== "GET") return null;
+
+  if (options.skipCache === true) return null;
+  if (String(options.cache || "").toLowerCase() === "no-store") return null;
+
+  if (options.body != null) return null;
+
+  const headers = options.headers ? JSON.stringify(options.headers) : "";
+  return `${method}:${path}:${headers}`;
+}
 
 function sleep(delayMs) {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
 export async function fetchAnalytics(path, options = {}) {
+  if (options.skipCache === true || String(options.cache || "").toLowerCase() === "no-store") {
+    const cacheKeyToDelete = `GET:${path}:${options.headers ? JSON.stringify(options.headers) : ""}`;
+    getResponseCache.delete(cacheKeyToDelete);
+  }
+
+  const cacheKey = buildGetCacheKey(path, options);
+  if (cacheKey) {
+    const cached = getResponseCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < GET_CACHE_TTL_MS) {
+      return cached.data;
+    }
+  }
+
   const timeout = Number(options.timeout || 10000);
   const attempts = Number(options.attempts || 2);
   const candidateBases = [resolvedBackendBase, ...BACKEND_BASES].filter(
@@ -40,7 +68,11 @@ export async function fetchAnalytics(path, options = {}) {
         }
 
         resolvedBackendBase = base;
-        return await response.json();
+        const data = await response.json();
+        if (cacheKey) {
+          getResponseCache.set(cacheKey, { data, timestamp: Date.now() });
+        }
+        return data;
       } catch (error) {
         lastError = error;
       } finally {

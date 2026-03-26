@@ -2,16 +2,16 @@
 
 Project is now split into separate apps:
 
-- `frontend/` -> Next.js UI
-- `dashboard-frontend/` -> standalone analytics dashboard UI
-- `backend/` -> Express + PostgreSQL analytics API
+- `apps/demo-site/` -> Next.js demo site UI
+- `apps/analytics-platform/dashboard/` -> analytics dashboard UI
+- `apps/analytics-platform/backend/` -> Express + PostgreSQL analytics API
 
 ## Run
 
 Backend:
 
 ```bash
-cd backend
+cd apps/analytics-platform/backend
 npm install
 npm run dev
 ```
@@ -19,7 +19,7 @@ npm run dev
 Frontend:
 
 ```bash
-cd frontend
+cd apps/demo-site
 npm install
 npm run dev
 ```
@@ -29,7 +29,7 @@ Open `http://localhost:3000` (or the Next.js port shown in terminal).
 Standalone dashboard frontend:
 
 ```bash
-cd dashboard-frontend
+cd apps/analytics-platform/dashboard
 npm install
 npm run dev
 ```
@@ -80,11 +80,11 @@ Extended journeys:
 
 ## Structure
 
-- `frontend/pages/`
-- `dashboard-frontend/pages/`
-- `frontend/components/`
-- `frontend/hooks/`
-- `frontend/utils/analytics.js`
-- `backend/routes/`
-- `backend/controllers/`
-- `backend/services/`
+- `apps/demo-site/pages/`
+- `apps/demo-site/components/`
+- `apps/demo-site/hooks/`
+- `apps/demo-site/utils/analytics.js`
+- `apps/analytics-platform/dashboard/pages/`
+- `apps/analytics-platform/backend/routes/`
+- `apps/analytics-platform/backend/controllers/`
+- `apps/analytics-platform/backend/services/`

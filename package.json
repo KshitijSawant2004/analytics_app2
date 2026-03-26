@@ -2,15 +2,15 @@
   "name": "analytics-workspace",
   "private": true,
   "scripts": {
-    "dev:frontend": "npm --prefix frontend run dev",
-    "build:frontend": "npm --prefix frontend run build",
-    "start:frontend": "npm --prefix frontend run start",
-    "lint:frontend": "npm --prefix frontend run lint",
-    "dev:dashboard": "npm --prefix dashboard-frontend run dev",
-    "build:dashboard": "npm --prefix dashboard-frontend run build",
-    "start:dashboard": "npm --prefix dashboard-frontend run start",
-    "lint:dashboard": "npm --prefix dashboard-frontend run lint",
-    "dev:backend": "npm --prefix backend run dev",
-    "start:backend": "npm --prefix backend run start"
+    "dev:frontend": "npm --prefix apps/demo-site run dev",
+    "build:frontend": "npm --prefix apps/demo-site run build",
+    "start:frontend": "npm --prefix apps/demo-site run start",
+    "lint:frontend": "npm --prefix apps/demo-site run lint",
+    "dev:dashboard": "npm --prefix apps/analytics-platform/dashboard run dev",
+    "build:dashboard": "npm --prefix apps/analytics-platform/dashboard run build",
+    "start:dashboard": "npm --prefix apps/analytics-platform/dashboard run start",
+    "lint:dashboard": "npm --prefix apps/analytics-platform/dashboard run lint",
+    "dev:backend": "npm --prefix apps/analytics-platform/backend run dev",
+    "start:backend": "npm --prefix apps/analytics-platform/backend run start"
   }
 }
