@@ -25,6 +25,16 @@ app.get("/", (_req, res) => {
   res.json({ status: "ok", service: "analytics-backend" });
 });
 
+app.post("/track", (_req, _res, next) => {
+  console.log("track request received");
+  next();
+});
+
+app.post("/session-record", (_req, _res, next) => {
+  console.log("session record received");
+  next();
+});
+
 app.use("/", trackRoutes);
 app.use("/analytics", analyticsRoutes);
 app.use("/", errorAlertingRoutes);
