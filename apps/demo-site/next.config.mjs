@@ -1,9 +1,11 @@
 import { fileURLToPath } from "node:url";
 
 const frontendRoot = fileURLToPath(new URL("./", import.meta.url));
+const basePath = process.env.NODE_ENV === "production" ? "/demo" : "";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  basePath,
   reactStrictMode: true,
   turbopack: {
     root: frontendRoot,
