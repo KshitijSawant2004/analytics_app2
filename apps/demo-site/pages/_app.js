@@ -55,9 +55,9 @@ export default function App({ Component, pageProps }) {
   return (
     <main className={`${manrope.variable} ${sora.variable}`}>
       <Script
-        src="https://diamond-proamateur-imputably.ngrok-free.dev/analytics.js"
+        src="/analytics.js"
         data-project-id="demo123"
-        data-endpoint="https://diamond-proamateur-imputably.ngrok-free.dev/api/track"
+        data-endpoint="/api/ingest/track"
         strategy="afterInteractive"
       />
       <Layout>
