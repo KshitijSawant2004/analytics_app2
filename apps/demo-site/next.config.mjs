@@ -1,7 +1,12 @@
 import { fileURLToPath } from "node:url";
 
 const frontendRoot = fileURLToPath(new URL("./", import.meta.url));
-const basePath = process.env.NODE_ENV === "production" ? "/demo" : "";
+const configuredBasePath = (process.env.NEXT_BASE_PATH || "").trim();
+const basePath = configuredBasePath
+  ? configuredBasePath.startsWith("/")
+    ? configuredBasePath
+    : `/${configuredBasePath}`
+  : "";
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
