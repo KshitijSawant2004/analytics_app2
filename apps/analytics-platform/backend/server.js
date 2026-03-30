@@ -40,6 +40,7 @@ app.post("/session-record", (_req, _res, next) => {
 
 app.use("/", trackRoutes);
 app.use("/api", trackRoutes);
+app.use("/api/ingest", trackRoutes);
 app.use("/analytics", analyticsRoutes);
 app.use("/", errorAlertingRoutes);
 
