@@ -57,7 +57,7 @@ export default function App({ Component, pageProps }) {
       <Script
         src="/analytics.js"
         data-project-id="demo123"
-        data-endpoint="/api/ingest/track"
+        data-endpoint="https://analyticsapp2-production.up.railway.app/api/track"
         strategy="afterInteractive"
       />
       <Layout>
