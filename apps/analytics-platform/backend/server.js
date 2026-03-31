@@ -1,3 +1,4 @@
+
 const path = require("path");
 require("dotenv").config({ path: path.join(__dirname, ".env") });
 
@@ -8,56 +9,49 @@ const analyticsRoutes = require("./routes/analytics");
 const errorAlertingRoutes = require("./routes/errorAlerting");
 
 const app = express();
-const BASE_PORT = Number(process.env.PORT || 4001);
-const MAX_PORT_ATTEMPTS = 5;
+const PORT = process.env.PORT || 4001;
 
-
-// Dynamic CORS middleware for all requests
-app.use((req, res, next) => {
-  res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
-  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
-  res.header("Access-Control-Allow-Headers", req.headers["access-control-request-headers"] || "Origin, X-Requested-With, Content-Type, Accept, Authorization");
-  res.header("Access-Control-Allow-Credentials", "true");
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(200);
-  }
-  next();
-});
+// CORS middleware (production-ready)
+app.use(cors({
+  origin: "*",
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+}));
+app.options("*", cors());
 
 app.use(express.json({ limit: "40mb" }));
 
-
 app.get("/", (_req, res) => {
-  res.json({ status: "ok", service: "analytics-backend" });
+  res.status(200).json({ status: "ok", service: "analytics-backend" });
 });
 
-
-// Logging middleware for debugging
-app.post("/track", (req, res, next) => {
-  console.log("track request received", req.body);
+// Log all incoming requests
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
   next();
 });
 
-app.post("/session-record", (req, res, next) => {
-  console.log("session record received", req.body);
-  next();
-});
-
-
-app.use("/", trackRoutes);
+// All analytics/event routes must use /api prefix
 app.use("/api", trackRoutes);
-app.use("/api/ingest", trackRoutes);
-app.use("/analytics", analyticsRoutes);
-app.use("/", errorAlertingRoutes);
+app.use("/api", analyticsRoutes);
+app.use("/api", errorAlertingRoutes);
 
-// Global error handler for robust error reporting
+// 404 handler
+app.use((req, res) => {
+  res.status(404).json({ error: true, message: "Not found" });
+});
+
+// Error handler
 app.use((err, req, res, next) => {
   console.error("Unhandled error:", err);
   res.status(err.status || 500).json({
     error: true,
     message: err.message || "Internal Server Error",
-    details: process.env.NODE_ENV === "development" ? err.stack : undefined,
   });
+});
+
+app.listen(PORT, () => {
+  console.log(`Analytics backend running on port ${PORT}`);
 });
 
 function startServer(port, attemptsLeft) {
