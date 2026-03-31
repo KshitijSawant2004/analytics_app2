@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/Button";
 import { Icons } from "@/components/ui/Icons";
 import { Badge } from "@/components/ui/Badge";
 
-const ANALYTICS_BASE = process.env.NEXT_PUBLIC_ANALYTICS_BASE || "http://localhost:4001";
+const BASE_URL = "https://analyticsapp2-production.up.railway.app";
+const ANALYTICS_BASE = BASE_URL;
 const WINDOW_OPTIONS = [
   { label: "1 hour", value: 1 },
   { label: "24 hours", value: 24 },
@@ -91,8 +92,8 @@ export default function FunnelsPage() {
     async function loadEventOptionsAndFunnels() {
       try {
         const [eventsResponse, funnelsResponse] = await Promise.all([
-          fetch(`${ANALYTICS_BASE}/analytics/events?groupBy=event_name`),
-          fetch(`${ANALYTICS_BASE}/analytics/funnels`),
+          fetch(`${ANALYTICS_BASE}/api/events?groupBy=event_name`),
+          fetch(`${ANALYTICS_BASE}/api/funnels`),
         ]);
 
         const eventRows = eventsResponse.ok ? await eventsResponse.json() : [];

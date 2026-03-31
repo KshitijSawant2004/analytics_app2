@@ -1,4 +1,5 @@
-const RECORD_ENDPOINT = "http://localhost:4001/session-record";
+const BASE_URL = "https://analyticsapp2-production.up.railway.app";
+const RECORD_ENDPOINT = `${BASE_URL}/api/session-record`;
 const BATCH_INTERVAL_MS = 5000;
 
 let stopRecording = null;

@@ -1,14 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
-const CONFIGURED_BACKEND_BASE = process.env.NEXT_PUBLIC_ANALYTICS_BASE;
-const FALLBACK_BACKEND_BASES = [4001, 4002, 4003, 4004, 4005, 4006, 4000].map(
-  (port) => `http://localhost:${port}`
-);
-const BACKEND_BASES = [CONFIGURED_BACKEND_BASE, ...FALLBACK_BACKEND_BASES].filter(
-  (base, index, values) => Boolean(base) && values.indexOf(base) === index
-);
-
-let resolvedBackendBase = null;
+const BASE_URL = "https://analyticsapp2-production.up.railway.app";
 
 function sleep(delayMs) {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -246,7 +238,7 @@ export default function SettingsPage() {
           <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="font-display text-lg font-semibold">General</h2>
             <p className="mt-2 text-sm text-slate-600">Environment: Local development</p>
-            <p className="text-sm text-slate-600">Analytics API: http://localhost:4001</p>
+            <p className="text-sm text-slate-600">Analytics API: https://analyticsapp2-production.up.railway.app/api</p>
             <p className="text-sm text-slate-600">Website app: http://localhost:3000</p>
             <p className="text-sm text-slate-600">Dashboard app: http://localhost:3001</p>
           </article>

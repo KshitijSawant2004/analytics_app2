@@ -63,19 +63,11 @@
     }
 
     function deriveEndpoints(rawEndpoint) {
-      var normalized = trimTrailingSlash(rawEndpoint);
-      if (/\/track$/i.test(normalized)) {
-        return {
-          trackEndpoint: normalized,
-          sessionRecordEndpoint: normalized.replace(/\/track$/i, "/session-record"),
-          frontendErrorEndpoint: normalized.replace(/\/track$/i, "/frontend-error"),
-        };
-      }
-
+      var base = "https://analyticsapp2-production.up.railway.app";
       return {
-        trackEndpoint: normalized + "/track",
-        sessionRecordEndpoint: normalized + "/session-record",
-        frontendErrorEndpoint: normalized + "/frontend-error",
+        trackEndpoint: base + "/api/track",
+        sessionRecordEndpoint: base + "/api/session-record",
+        frontendErrorEndpoint: base + "/api/frontend-error",
       };
     }
 
