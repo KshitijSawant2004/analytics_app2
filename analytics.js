@@ -129,8 +129,18 @@
     function postJsonWithFallback(candidates, body, useBeaconFirst) {
       if (!candidates || candidates.length === 0) return;
 
+      function isSameOriginUrl(candidate) {
+        try {
+          var parsed = new URL(candidate, window.location.href);
+          return parsed.origin === window.location.origin;
+        } catch (_err) {
+          return false;
+        }
+      }
+
       if (useBeaconFirst && navigator.sendBeacon) {
         for (var i = 0; i < candidates.length; i += 1) {
+          if (!isSameOriginUrl(candidates[i])) continue;
           try {
             var blob = new Blob([body], { type: "application/json" });
             var beaconOk = navigator.sendBeacon(candidates[i], blob);

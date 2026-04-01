@@ -1,1 +1,1 @@
-require("./backend/server");
+require("./apps/analytics-platform/backend/server");

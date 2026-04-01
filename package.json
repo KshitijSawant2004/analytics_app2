@@ -3,9 +3,13 @@
   "private": true,
   "scripts": {
     "dev:frontend": "npm --prefix apps/demo-site run dev",
+    "dev:frontend-standalone": "npm --prefix apps/demo-site-standalone run dev",
     "build:frontend": "npm --prefix apps/demo-site run build",
+    "build:frontend-standalone": "npm --prefix apps/demo-site-standalone run build",
     "start:frontend": "npm --prefix apps/demo-site run start",
+    "start:frontend-standalone": "npm --prefix apps/demo-site-standalone run start",
     "lint:frontend": "npm --prefix apps/demo-site run lint",
+    "lint:frontend-standalone": "npm --prefix apps/demo-site-standalone run lint",
     "dev:dashboard": "npm --prefix apps/analytics-platform/dashboard run dev",
     "build:dashboard": "npm --prefix apps/analytics-platform/dashboard run build",
     "start:dashboard": "npm --prefix apps/analytics-platform/dashboard run start",
