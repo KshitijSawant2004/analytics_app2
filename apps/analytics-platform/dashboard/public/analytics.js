@@ -17,6 +17,13 @@
     var RAGE_WINDOW_MS = 1000;
     var RAGE_CLICK_COUNT = 3;
     var RAGE_AREA_PX = 48;
+    var HOVER_SAMPLE_INTERVAL_MS = 250;
+    var HOVER_BATCH_MAX_EVENTS = 120;
+    var HOVER_BATCH_FLUSH_INTERVAL_MS = 5000;
+    var MIN_HOVER_MOVE_DISTANCE_PX = 24;
+    var SCROLL_HEATMAP_THROTTLE_MS = 2000;
+    var SNAPSHOT_CAPTURE_DEBOUNCE_MS = 1200;
+    var SNAPSHOT_MIN_CAPTURE_INTERVAL_MS = 8000;
 
     var scriptEl =
       document.currentScript ||
@@ -79,19 +86,92 @@
     }
 
     function deriveEndpoints(rawEndpoint) {
-      var base = "https://analyticsapp2-production.up.railway.app";
+      var normalized = trimTrailingSlash(rawEndpoint);
+      if (/\/track$/i.test(normalized)) {
+        return {
+          trackEndpoint: normalized,
+          sessionRecordEndpoint: normalized.replace(/\/track$/i, "/session-record"),
+          frontendErrorEndpoint: normalized.replace(/\/track$/i, "/frontend-error"),
+          heatmapClickEndpoint: normalized.replace(/\/track$/i, "/heatmap/click"),
+          heatmapHoverEndpoint: normalized.replace(/\/track$/i, "/heatmap/hover"),
+          heatmapScrollEndpoint: normalized.replace(/\/track$/i, "/heatmap/scroll"),
+          heatmapSnapshotEndpoint: normalized.replace(/\/track$/i, "/heatmap/snapshot"),
+        };
+      }
+
       return {
-        trackEndpoint: base + "/api/track",
-        sessionRecordEndpoint: base + "/api/session-record",
-        frontendErrorEndpoint: base + "/api/frontend-error",
+        trackEndpoint: normalized + "/track",
+        sessionRecordEndpoint: normalized + "/session-record",
+        frontendErrorEndpoint: normalized + "/frontend-error",
+        heatmapClickEndpoint: normalized + "/heatmap/click",
+        heatmapHoverEndpoint: normalized + "/heatmap/hover",
+        heatmapScrollEndpoint: normalized + "/heatmap/scroll",
+        heatmapSnapshotEndpoint: normalized + "/heatmap/snapshot",
       };
+    }
+
+    function buildLocalFallbackCandidates(endpointUrl) {
+      var candidates = [endpointUrl];
+
+      try {
+        var parsed = new URL(endpointUrl, window.location.href);
+        var pathName = String(parsed.pathname || "").replace(/\/+$/, "") || "/";
+        var altPath = "";
+
+        if (/^\/api\//i.test(pathName)) {
+          altPath = pathName.replace(/^\/api\//i, "/");
+        } else {
+          altPath = "/api" + (pathName.charAt(0) === "/" ? pathName : "/" + pathName);
+        }
+
+        if (altPath && altPath !== pathName) {
+          var alt = new URL(parsed.toString());
+          alt.pathname = altPath;
+          candidates.push(alt.toString());
+        }
+
+        var isLocalHost = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+        if (isLocalHost) {
+          var pathVariants = altPath && altPath !== pathName ? [pathName, altPath] : [pathName];
+          for (var port = 4001; port <= 4006; port += 1) {
+            for (var j = 0; j < pathVariants.length; j += 1) {
+              var fallback = new URL(parsed.toString());
+              fallback.port = String(port);
+              fallback.pathname = pathVariants[j];
+              candidates.push(fallback.toString());
+            }
+          }
+        }
+      } catch (_err) {
+        // Keep only provided endpoint when URL parsing fails.
+      }
+
+      var unique = [];
+      for (var i = 0; i < candidates.length; i += 1) {
+        var item = String(candidates[i] || "");
+        if (item && unique.indexOf(item) === -1) {
+          unique.push(item);
+        }
+      }
+
+      return unique;
     }
 
     function postJsonWithFallback(candidates, body, useBeaconFirst) {
       if (!candidates || candidates.length === 0) return;
 
+      function isSameOriginUrl(candidate) {
+        try {
+          var parsed = new URL(candidate, window.location.href);
+          return parsed.origin === window.location.origin;
+        } catch (_err) {
+          return false;
+        }
+      }
+
       if (useBeaconFirst && navigator.sendBeacon) {
         for (var i = 0; i < candidates.length; i += 1) {
+          if (!isSameOriginUrl(candidates[i])) continue;
           try {
             var blob = new Blob([body], { type: "application/json" });
             var beaconOk = navigator.sendBeacon(candidates[i], blob);
@@ -135,9 +215,17 @@
     var trackEndpoint = endpoints.trackEndpoint;
     var sessionRecordEndpoint = endpoints.sessionRecordEndpoint;
     var frontendErrorEndpoint = endpoints.frontendErrorEndpoint;
+    var heatmapClickEndpoint = endpoints.heatmapClickEndpoint;
+    var heatmapHoverEndpoint = endpoints.heatmapHoverEndpoint;
+    var heatmapScrollEndpoint = endpoints.heatmapScrollEndpoint;
+    var heatmapSnapshotEndpoint = endpoints.heatmapSnapshotEndpoint;
     var trackEndpointCandidates = buildLocalFallbackCandidates(trackEndpoint);
     var sessionRecordEndpointCandidates = buildLocalFallbackCandidates(sessionRecordEndpoint);
     var frontendErrorEndpointCandidates = buildLocalFallbackCandidates(frontendErrorEndpoint);
+    var heatmapClickEndpointCandidates = buildLocalFallbackCandidates(heatmapClickEndpoint);
+    var heatmapHoverEndpointCandidates = buildLocalFallbackCandidates(heatmapHoverEndpoint);
+    var heatmapScrollEndpointCandidates = buildLocalFallbackCandidates(heatmapScrollEndpoint);
+    var heatmapSnapshotEndpointCandidates = buildLocalFallbackCandidates(heatmapSnapshotEndpoint);
 
     function now() {
       return Date.now();
@@ -192,6 +280,16 @@
     var lastEventByKey = new Map();
     var clickHistory = [];
     var maxScrollDepthBucket = 0;
+    var hoverBatch = [];
+    var hoverFlushTimer = null;
+    var lastHoverSampleTime = 0;
+    var lastHoverPoint = null;
+    var lastHeatmapScrollSentAt = 0;
+    var lastHeatmapScrollDepth = 0;
+    var snapshotCaptureTimer = null;
+    var isCapturingSnapshot = false;
+    var lastSnapshotAt = 0;
+    var lastSnapshotFingerprint = "";
 
     function safeGetPathname() {
       try {
@@ -223,6 +321,283 @@
       } catch (_err) {
         return "";
       }
+    }
+
+    function getDeviceType() {
+      var width = window.innerWidth || 0;
+      if (width < 768) return "mobile";
+      if (width < 1024) return "tablet";
+      return "desktop";
+    }
+
+    function getDocumentMetrics() {
+      var root = document.documentElement;
+      var body = document.body;
+
+      return {
+        viewportWidth: window.innerWidth || (root && root.clientWidth) || 0,
+        viewportHeight: window.innerHeight || (root && root.clientHeight) || 0,
+        documentWidth: Math.max(
+          (root && root.scrollWidth) || 0,
+          (root && root.offsetWidth) || 0,
+          (root && root.clientWidth) || 0,
+          (body && body.scrollWidth) || 0,
+          (body && body.offsetWidth) || 0,
+          (body && body.clientWidth) || 0
+        ),
+        documentHeight: Math.max(
+          (root && root.scrollHeight) || 0,
+          (root && root.offsetHeight) || 0,
+          (root && root.clientHeight) || 0,
+          (body && body.scrollHeight) || 0,
+          (body && body.offsetHeight) || 0,
+          (body && body.clientHeight) || 0
+        ),
+        scrollX: window.scrollX || (root && root.scrollLeft) || 0,
+        scrollY: window.scrollY || (root && root.scrollTop) || 0,
+      };
+    }
+
+    function getCssSelector(el) {
+      if (!el || el.nodeType !== 1) return "unknown";
+      if (el === document.body) return "body";
+
+      var parts = [];
+      var current = el;
+
+      while (current && current !== document.body && current.nodeType === 1 && parts.length < 4) {
+        var part = String(current.tagName || "").toLowerCase();
+
+        if (current.id) {
+          part += "#" + String(current.id).replace(/[^\w-]/g, "_");
+          parts.unshift(part);
+          break;
+        }
+
+        var classes = Array.from(current.classList || []).slice(0, 2).join(".");
+        if (classes) part += "." + classes;
+
+        parts.unshift(part);
+        current = current.parentElement;
+      }
+
+      return parts.join(" > ");
+    }
+
+    function getElementText(el) {
+      if (!el) return "";
+      var text = el.innerText || el.textContent || "";
+      return String(text).trim().slice(0, 100);
+    }
+
+    function postHeatmapPayload(candidates, payload) {
+      try {
+        postJsonWithFallback(candidates, JSON.stringify(payload), true);
+      } catch (_err) {
+        // Ignore heatmap payload transport errors.
+      }
+    }
+
+    function sendHeatmapClick(event) {
+      try {
+        var metrics = getDocumentMetrics();
+        var pageX = Number.isFinite(event.pageX) ? event.pageX : event.clientX + metrics.scrollX;
+        var pageY = Number.isFinite(event.pageY) ? event.pageY : event.clientY + metrics.scrollY;
+        var target = (event && event.target) || {};
+
+        postHeatmapPayload(heatmapClickEndpointCandidates, {
+          user_id: userId,
+          session_id: sessionId,
+          page_url: safeGetPathname(),
+          x_coordinate: event.clientX,
+          y_coordinate: event.clientY,
+          page_x: pageX,
+          page_y: pageY,
+          x_percent: metrics.viewportWidth > 0 ? event.clientX / metrics.viewportWidth : null,
+          y_percent: metrics.viewportHeight > 0 ? event.clientY / metrics.viewportHeight : null,
+          page_x_percent: metrics.documentWidth > 0 ? pageX / metrics.documentWidth : null,
+          page_y_percent: metrics.documentHeight > 0 ? pageY / metrics.documentHeight : null,
+          viewport_width: metrics.viewportWidth,
+          viewport_height: metrics.viewportHeight,
+          document_width: metrics.documentWidth,
+          document_height: metrics.documentHeight,
+          scroll_x: metrics.scrollX,
+          scroll_y: metrics.scrollY,
+          device_type: getDeviceType(),
+          element_selector: getCssSelector(target),
+          element_text: getElementText(target),
+          timestamp: new Date().toISOString(),
+        });
+      } catch (_err) {
+        // Ignore heatmap click tracking errors.
+      }
+    }
+
+    function flushHoverBatch() {
+      if (hoverBatch.length === 0) return;
+      var events = hoverBatch.splice(0, hoverBatch.length);
+      postHeatmapPayload(heatmapHoverEndpointCandidates, { events: events });
+    }
+
+    function queueHoverFlush() {
+      if (hoverBatch.length >= HOVER_BATCH_MAX_EVENTS) {
+        if (hoverFlushTimer) {
+          window.clearTimeout(hoverFlushTimer);
+          hoverFlushTimer = null;
+        }
+        flushHoverBatch();
+        return;
+      }
+
+      if (!hoverFlushTimer) {
+        hoverFlushTimer = window.setTimeout(function () {
+          hoverFlushTimer = null;
+          flushHoverBatch();
+        }, HOVER_BATCH_FLUSH_INTERVAL_MS);
+      }
+    }
+
+    function handleHoverCapture(event) {
+      try {
+        var nowTs = Date.now();
+        if (nowTs - lastHoverSampleTime < HOVER_SAMPLE_INTERVAL_MS) return;
+
+        if (lastHoverPoint) {
+          var deltaX = event.clientX - lastHoverPoint.x;
+          var deltaY = event.clientY - lastHoverPoint.y;
+          var distance = Math.hypot(deltaX, deltaY);
+          if (distance < MIN_HOVER_MOVE_DISTANCE_PX) return;
+        }
+
+        lastHoverSampleTime = nowTs;
+        lastHoverPoint = { x: event.clientX, y: event.clientY };
+
+        var metrics = getDocumentMetrics();
+        var pageX = Number.isFinite(event.pageX) ? event.pageX : event.clientX + metrics.scrollX;
+        var pageY = Number.isFinite(event.pageY) ? event.pageY : event.clientY + metrics.scrollY;
+
+        hoverBatch.push({
+          user_id: userId,
+          session_id: sessionId,
+          page_url: safeGetPathname(),
+          x_coordinate: event.clientX,
+          y_coordinate: event.clientY,
+          page_x: pageX,
+          page_y: pageY,
+          x_percent: metrics.viewportWidth > 0 ? event.clientX / metrics.viewportWidth : null,
+          y_percent: metrics.viewportHeight > 0 ? event.clientY / metrics.viewportHeight : null,
+          page_x_percent: metrics.documentWidth > 0 ? pageX / metrics.documentWidth : null,
+          page_y_percent: metrics.documentHeight > 0 ? pageY / metrics.documentHeight : null,
+          viewport_width: metrics.viewportWidth,
+          viewport_height: metrics.viewportHeight,
+          document_width: metrics.documentWidth,
+          document_height: metrics.documentHeight,
+          scroll_x: metrics.scrollX,
+          scroll_y: metrics.scrollY,
+          device_type: getDeviceType(),
+          timestamp: new Date().toISOString(),
+        });
+
+        queueHoverFlush();
+      } catch (_err) {
+        // Ignore heatmap hover tracking errors.
+      }
+    }
+
+    function calculateScrollDepthPercentage() {
+      var metrics = getDocumentMetrics();
+      if (metrics.documentHeight <= metrics.viewportHeight) return 100;
+      var depth = ((metrics.scrollY + metrics.viewportHeight) / metrics.documentHeight) * 100;
+      return Math.max(0, Math.min(100, Math.round(depth)));
+    }
+
+    function handleHeatmapScroll() {
+      try {
+        var nowTs = Date.now();
+        if (nowTs - lastHeatmapScrollSentAt < SCROLL_HEATMAP_THROTTLE_MS) return;
+
+        var depth = calculateScrollDepthPercentage();
+        if (depth <= lastHeatmapScrollDepth) return;
+
+        lastHeatmapScrollSentAt = nowTs;
+        lastHeatmapScrollDepth = depth;
+        var metrics = getDocumentMetrics();
+
+        postHeatmapPayload(heatmapScrollEndpointCandidates, {
+          user_id: userId,
+          session_id: sessionId,
+          page_url: safeGetPathname(),
+          scroll_depth_percentage: depth,
+          viewport_height: metrics.viewportHeight,
+          document_height: metrics.documentHeight,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (_err) {
+        // Ignore heatmap scroll tracking errors.
+      }
+    }
+
+    function buildSnapshotHtml() {
+      try {
+        var clone = document.documentElement.cloneNode(true);
+        clone.querySelectorAll("script, noscript, iframe, object, embed").forEach(function (node) {
+          node.remove();
+        });
+        return "<!DOCTYPE html>" + clone.outerHTML;
+      } catch (_err) {
+        return "";
+      }
+    }
+
+    function capturePageSnapshot(reason) {
+      if (typeof reason !== "string") reason = "manual";
+      if (document.hidden || isCapturingSnapshot) return;
+
+      var nowTs = Date.now();
+      if (nowTs - lastSnapshotAt < SNAPSHOT_MIN_CAPTURE_INTERVAL_MS && reason !== "route_change") {
+        return;
+      }
+
+      isCapturingSnapshot = true;
+      try {
+        var html = buildSnapshotHtml();
+        if (!html) return;
+
+        var metrics = getDocumentMetrics();
+        var fingerprint = [safeGetPathname(), metrics.documentWidth, metrics.documentHeight, html.length].join(":");
+        if (fingerprint === lastSnapshotFingerprint && reason !== "route_change") return;
+
+        postHeatmapPayload(heatmapSnapshotEndpointCandidates, {
+          user_id: userId,
+          session_id: sessionId,
+          page_url: safeGetPathname(),
+          dom_snapshot: html,
+          viewport_width: metrics.viewportWidth,
+          viewport_height: metrics.viewportHeight,
+          document_width: metrics.documentWidth,
+          document_height: metrics.documentHeight,
+          scroll_x: metrics.scrollX,
+          scroll_y: metrics.scrollY,
+          device_type: getDeviceType(),
+          reason: reason,
+          timestamp: new Date().toISOString(),
+        });
+
+        lastSnapshotAt = nowTs;
+        lastSnapshotFingerprint = fingerprint;
+      } finally {
+        isCapturingSnapshot = false;
+      }
+    }
+
+    function scheduleSnapshotCapture(reason) {
+      if (snapshotCaptureTimer) {
+        window.clearTimeout(snapshotCaptureTimer);
+      }
+      snapshotCaptureTimer = window.setTimeout(function () {
+        snapshotCaptureTimer = null;
+        capturePageSnapshot(reason || "scheduled");
+      }, SNAPSHOT_CAPTURE_DEBOUNCE_MS);
     }
 
     function scheduleFlush() {
@@ -543,6 +918,10 @@
 
     function onRouteChange() {
       track("page_view");
+      scheduleSnapshotCapture("route_change");
+      maxScrollDepthBucket = 0;
+      lastHeatmapScrollDepth = 0;
+      lastHeatmapScrollSentAt = 0;
     }
 
     function debounce(fn, wait) {
@@ -627,12 +1006,16 @@
             class: target.className || "",
           });
           detectRageClick(e);
+          sendHeatmapClick(e);
         } catch (_err) {
           // Ignore click tracking errors.
         }
       },
       { capture: true, passive: true }
     );
+
+    document.addEventListener("mousemove", handleHoverCapture, { capture: true, passive: true });
+    window.addEventListener("scroll", handleHeatmapScroll, { passive: true });
 
     document.addEventListener(
       "submit",
@@ -733,6 +1116,9 @@
     window.addEventListener("beforeunload", function () {
       flushQueue();
       flushSessionRecording(true, "page_unload");
+      flushHoverBatch();
+      handleHeatmapScroll();
+      capturePageSnapshot("page_unload");
       if (typeof stopSessionRecording === "function") {
         try {
           stopSessionRecording();
@@ -744,6 +1130,7 @@
 
     startSessionRecording();
     track("page_view");
+    scheduleSnapshotCapture("initial_load");
 
     window.analytics = {
       track: track,
