@@ -25,12 +25,28 @@
 
     var scriptSrc = (scriptEl && scriptEl.getAttribute("src")) || "";
 
-    var projectId = scriptEl && scriptEl.getAttribute("data-project-id");
-    var endpointAttr = scriptEl && scriptEl.getAttribute("data-endpoint");
-
-    if (!projectId) {
-      return;
+    function sanitizeProjectId(value) {
+      return String(value || "")
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9_-]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 80);
     }
+
+    function inferProjectId() {
+      try {
+        var host = String(window.location.hostname || "").trim();
+        var cleaned = sanitizeProjectId(host);
+        if (cleaned) return cleaned;
+      } catch (_err) {
+        // Fall through to default.
+      }
+      return "default-project";
+    }
+
+    var projectId = sanitizeProjectId(scriptEl && scriptEl.getAttribute("data-project-id")) || inferProjectId();
+    var endpointAttr = scriptEl && scriptEl.getAttribute("data-endpoint");
 
     // Guard against duplicate script injection on SPAs/templated pages.
     if (typeof window !== "undefined") {
@@ -175,6 +191,7 @@
     };
     var lastEventByKey = new Map();
     var clickHistory = [];
+    var maxScrollDepthBucket = 0;
 
     function safeGetPathname() {
       try {
@@ -187,6 +204,22 @@
     function safeGetHref() {
       try {
         return window.location.href;
+      } catch (_err) {
+        return "";
+      }
+    }
+
+    function safeGetHost() {
+      try {
+        return window.location.host || "";
+      } catch (_err) {
+        return "";
+      }
+    }
+
+    function safeGetOrigin() {
+      try {
+        return window.location.origin || "";
       } catch (_err) {
         return "";
       }
@@ -471,7 +504,15 @@
           page: safeGetPathname(),
           url: safeGetHref(),
           timestamp: now(),
-          properties: Object.assign({}, userProperties, nextProps),
+          properties: Object.assign(
+            {
+              site_host: safeGetHost(),
+              site_origin: safeGetOrigin(),
+              page_title: document.title || "",
+            },
+            userProperties,
+            nextProps
+          ),
         };
 
         enqueue(payload);
@@ -591,6 +632,66 @@
         }
       },
       { capture: true, passive: true }
+    );
+
+    document.addEventListener(
+      "submit",
+      function (e) {
+        try {
+          var form = (e && e.target) || {};
+          track("form_submit", {
+            id: form.id || "",
+            name: form.name || "",
+            action: form.action || "",
+            method: String(form.method || "get").toLowerCase(),
+          });
+        } catch (_err) {
+          // Ignore form tracking errors.
+        }
+      },
+      { capture: true, passive: true }
+    );
+
+    document.addEventListener(
+      "change",
+      function (e) {
+        try {
+          var target = (e && e.target) || {};
+          var tag = String(target.tagName || "").toLowerCase();
+          if (tag !== "input" && tag !== "select" && tag !== "textarea") return;
+          track("field_change", {
+            tag: target.tagName || "",
+            type: target.type || "",
+            id: target.id || "",
+            name: target.name || "",
+          });
+        } catch (_err) {
+          // Ignore change tracking errors.
+        }
+      },
+      { capture: true, passive: true }
+    );
+
+    window.addEventListener(
+      "scroll",
+      function () {
+        try {
+          var doc = document.documentElement || {};
+          var body = document.body || {};
+          var scrollTop = Number(doc.scrollTop || body.scrollTop || 0);
+          var viewport = Number(window.innerHeight || doc.clientHeight || 0);
+          var scrollHeight = Number(doc.scrollHeight || body.scrollHeight || 0);
+          var denominator = Math.max(1, scrollHeight - viewport);
+          var percent = Math.max(0, Math.min(100, Math.round((scrollTop / denominator) * 100)));
+          var bucket = Math.floor(percent / 25) * 25;
+          if (bucket <= maxScrollDepthBucket) return;
+          maxScrollDepthBucket = bucket;
+          track("scroll_depth", { percent: percent, bucket: bucket });
+        } catch (_err) {
+          // Ignore scroll depth errors.
+        }
+      },
+      { passive: true }
     );
 
     window.addEventListener("error", function (e) {

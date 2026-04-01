@@ -11,12 +11,19 @@ const app = express();
 const PORT = process.env.PORT || 4001;
 
 // CORS
-app.use(cors({
-  origin: "*",
+const corsOptions = {
+  origin(origin, callback) {
+    // Allow server-to-server calls and reflect browser origins for credentialed requests.
+    if (!origin) return callback(null, true);
+    return callback(null, origin);
+  },
+  credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
-}));
-app.options("*", cors());
+};
+
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 
 // Body parser
 app.use(express.json({ limit: "40mb" }));
