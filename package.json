@@ -1,0 +1,12 @@
+{
+  "name": "analytics-platform",
+  "private": true,
+  "scripts": {
+    "dev:backend": "npm --prefix apps/analytics-platform/backend run dev",
+    "start:backend": "npm --prefix apps/analytics-platform/backend run start",
+    "dev:dashboard": "npm --prefix apps/analytics-platform/dashboard run dev",
+    "build:dashboard": "npm --prefix apps/analytics-platform/dashboard run build",
+    "start:dashboard": "npm --prefix apps/analytics-platform/dashboard run start",
+    "lint:dashboard": "npm --prefix apps/analytics-platform/dashboard run lint"
+  }
+}

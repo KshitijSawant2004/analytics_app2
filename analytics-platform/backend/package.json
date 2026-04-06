@@ -1,0 +1,22 @@
+{
+  "name": "analytics-backend",
+  "version": "1.0.0",
+  "description": "Analytics platform backend",
+  "main": "server.js",
+  "scripts": {
+    "build": "node -e \"console.log('No build step required')\"",
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "cors": "^2.8.6",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.0",
+    "express-rate-limit": "^7.5.1",
+    "helmet": "^8.1.0",
+    "nodemailer": "^6.9.7",
+    "pg": "^8.12.0",
+    "rrweb": "^2.0.0-alpha.4",
+    "uuid": "^10.0.0"
+  }
+}

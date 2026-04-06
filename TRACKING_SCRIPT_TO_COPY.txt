@@ -1,0 +1,55 @@
+HOW TO EMBED THE SDK ON YOUR WEBSITE
+=====================================
+
+Paste this before </body> on every page you want to track.
+
+<script
+  src="https://YOUR_BACKEND_DOMAIN/analytics.js"
+  data-project-id="YOUR_PROJECT_ID"
+  data-endpoint="https://YOUR_BACKEND_DOMAIN/api"
+></script>
+
+REPLACE THESE VALUES:
+─────────────────────
+1) YOUR_BACKEND_DOMAIN
+   - The domain where your analytics backend is deployed.
+   - Example: api.mycompany.com
+   - The backend serves analytics.js at: https://api.mycompany.com/analytics.js
+   - The backend API sits at:            https://api.mycompany.com/api
+
+2) YOUR_PROJECT_ID
+   - A short slug to identify your website in the database.
+   - Use lowercase letters, numbers, hyphens only.
+   - Example: my-website-prod
+
+EXAMPLE (production):
+<script
+  src="https://api.mycompany.com/analytics.js"
+  data-project-id="my-website-prod"
+  data-endpoint="https://api.mycompany.com/api"
+></script>
+
+EXAMPLE (local dev — backend on port 4001):
+<script
+  src="http://localhost:4001/analytics.js"
+  data-project-id="my-website-dev"
+  data-endpoint="http://localhost:4001/api"
+></script>
+
+WHAT GETS TRACKED AUTOMATICALLY:
+─────────────────────────────────
+- Page views (including SPA route changes)
+- Clicks & rage clicks
+- JavaScript errors & unhandled promise rejections
+- Scroll depth
+- Mouse hover heatmap
+- Click heatmap (batched, 50 clicks per flush)
+- Dead clicks (clicks with no DOM/navigation response)
+- Session recordings (via rrweb — served from your backend)
+- Page DOM snapshots (sanitized — no scripts, no inline handlers)
+
+OPTIONAL JAVASCRIPT API:
+────────────────────────
+window.analytics.track("event_name", { key: "value" });
+window.analytics.identify("user@email.com");
+window.analytics.setUserProperties({ plan: "pro", company: "Acme" });

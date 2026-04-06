@@ -1,0 +1,98 @@
+const BASE_URL = "https://analyticsapp2-production.up.railway.app";
+const GET_CACHE_TTL_MS = 15000;
+const getResponseCache = new Map();
+
+let activeProjectId = null;
+
+export function setActiveProjectId(id) {
+  activeProjectId = id || null;
+  // Clear cache when switching projects so stale data isn't shown
+  getResponseCache.clear();
+}
+
+export function getActiveProjectId() {
+  return activeProjectId;
+}
+
+function buildGetCacheKey(path, options) {
+  const method = String(options.method || "GET").toUpperCase();
+  if (method !== "GET") return null;
+
+  if (options.skipCache === true) return null;
+  if (String(options.cache || "").toLowerCase() === "no-store") return null;
+
+  if (options.body != null) return null;
+
+  const headers = options.headers ? JSON.stringify(options.headers) : "";
+  return `${method}:${path}:${headers}`;
+}
+
+function sleep(delayMs) {
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
+export async function fetchAnalytics(path, options = {}) {
+  // Inject active project_id into GET requests automatically
+  const method = String(options.method || "GET").toUpperCase();
+  if (method === "GET" && activeProjectId) {
+    const separator = path.includes("?") ? "&" : "?";
+    // Only inject if not already present
+    if (!path.includes("project_id=")) {
+      path = `${path}${separator}project_id=${encodeURIComponent(activeProjectId)}`;
+    }
+  }
+
+  if (options.skipCache === true || String(options.cache || "").toLowerCase() === "no-store") {
+    const cacheKeyToDelete = `GET:${path}:${options.headers ? JSON.stringify(options.headers) : ""}`;
+    getResponseCache.delete(cacheKeyToDelete);
+  }
+
+  const cacheKey = buildGetCacheKey(path, options);
+  if (cacheKey) {
+    const cached = getResponseCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < GET_CACHE_TTL_MS) {
+      return cached.data;
+    }
+  }
+
+  const timeout = Number(options.timeout || 10000);
+  let apiPath = path.startsWith("/api/") ? path : `/api${path.startsWith("/") ? path : "/" + path}`;
+  let lastError = null;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    let timeoutId;
+    try {
+      const controller = new AbortController();
+      timeoutId = setTimeout(() => controller.abort(), timeout);
+      const response = await fetch(`${BASE_URL}${apiPath}`, {
+        ...options,
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        lastError = new Error(`Server ${BASE_URL} returned status ${response.status}`);
+        continue;
+      }
+      const data = await response.json();
+      if (cacheKey) {
+        getResponseCache.set(cacheKey, { data, timestamp: Date.now() });
+      }
+      return data;
+    } catch (error) {
+      lastError = error;
+    } finally {
+      clearTimeout(timeoutId);
+    }
+    if (attempt < 1) {
+      await sleep(350);
+    }
+  }
+  throw lastError || new Error("Could not reach backend");
+}
+
+export function toQuery(params) {
+  const query = new URLSearchParams();
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") return;
+    query.set(key, String(value));
+  });
+  return query.toString();
+}
