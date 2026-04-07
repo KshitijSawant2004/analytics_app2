@@ -1,0 +1,89 @@
+UNIVERSAL TRACKING SCRIPT (COPY + PASTE)
+
+Use one unique project id per website/app so you can filter in dashboard Events page.
+
+OPTION A: HOSTED TRACKER FILE (recommended)
+
+Paste before </body>:
+
+<script
+	src="https://YOUR_SCRIPT_HOST/analytics.js"
+	data-project-id="YOUR_PROJECT_ID"
+	data-endpoint="https://YOUR_BACKEND_DOMAIN/api/track"
+></script>
+
+OPTION B: INLINE TRACKER (works even without hosting analytics.js)
+
+Paste before </body>:
+
+<script>
+(function () {
+	var PROJECT_ID = "YOUR_PROJECT_ID";
+	var API_BASE = "https://YOUR_BACKEND_DOMAIN/api";
+
+	function getOrCreate(key, storage, prefix) {
+		try {
+			var existing = storage.getItem(key);
+			if (existing) return existing;
+			var next = prefix + "_" + Date.now() + "_" + Math.random().toString(36).slice(2, 10);
+			storage.setItem(key, next);
+			return next;
+		} catch (_err) {
+			return prefix + "_" + Date.now() + "_" + Math.random().toString(36).slice(2, 10);
+		}
+	}
+
+	function send(eventName, properties) {
+		var payload = {
+			project_id: PROJECT_ID,
+			user_id: getOrCreate("analytics_user_id", window.localStorage, "u"),
+			session_id: getOrCreate("analytics_session_id", window.sessionStorage, "s"),
+			event_name: eventName,
+			page: window.location.pathname,
+			properties: properties || {},
+			timestamp: new Date().toISOString(),
+		};
+
+		try {
+			fetch(API_BASE + "/track", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify(payload),
+				keepalive: true,
+			});
+		} catch (_err) {}
+	}
+
+	send("page_view", { href: window.location.href, title: document.title });
+
+	window.analytics = window.analytics || {};
+	window.analytics.track = send;
+})();
+</script>
+
+CUSTOM EVENT EXAMPLE
+
+<script>
+	// call this anywhere in your app code
+	window.analytics.track("signup_started", { plan: "pro", source: "pricing_page" });
+</script>
+
+HOW TO FILTER IN YOUR APP
+
+1) Open /events in your dashboard.
+2) Set Project ID to the same value used in data-project-id / PROJECT_ID.
+3) Click Load Events.
+
+PLACEHOLDERS
+
+1) YOUR_PROJECT_ID
+- Any stable id per site/app.
+- Examples: marketing_site_prod, store_us, blog_main
+
+2) YOUR_BACKEND_DOMAIN
+- Your backend host without trailing slash.
+- Local example: http://localhost:4001
+- Production example: https://analyticsapp2-production.up.railway.app
+
+3) YOUR_SCRIPT_HOST (Option A only)
+- Host where analytics.js is publicly accessible.

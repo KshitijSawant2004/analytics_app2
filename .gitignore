@@ -46,6 +46,3 @@ next-env.d.ts
 /frontend/
 /frontend
 
-# local demo testing sites (do not push)
-/apps/demo-site/
-/apps/demo-site-standalone/

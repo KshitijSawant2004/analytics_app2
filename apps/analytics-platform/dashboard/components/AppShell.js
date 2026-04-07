@@ -7,6 +7,7 @@ import { Button } from "./ui/Button";
 const NAV_ITEMS = [
   { href: "/", label: "Overview" },
   { href: "/charts-analysis", label: "Analysis" },
+  { href: "/events", label: "Events" },
   { href: "/funnels", label: "Funnels" },
   { href: "/heatmaps", label: "Heatmaps" },
   { href: "/user-journeys", label: "Journeys" },

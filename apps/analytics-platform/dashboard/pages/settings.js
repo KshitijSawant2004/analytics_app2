@@ -1,17 +1,49 @@
 import { useEffect, useMemo, useState } from "react";
 
 const BASE_URL = "https://analyticsapp2-production.up.railway.app";
+const CONFIGURED_BACKEND_BASE = process.env.NEXT_PUBLIC_ANALYTICS_BASE;
+const LOCAL_BACKEND_BASE = "http://localhost:4001";
+let resolvedBackendBase = null;
+
+function getBackendBases() {
+  const isLocalHost = typeof window !== "undefined"
+    && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
+
+  const preferred = isLocalHost
+    ? [LOCAL_BACKEND_BASE, CONFIGURED_BACKEND_BASE, BASE_URL]
+    : [CONFIGURED_BACKEND_BASE, BASE_URL, LOCAL_BACKEND_BASE];
+
+  return preferred.filter((base, index, values) => Boolean(base) && values.indexOf(base) === index);
+}
 
 function sleep(delayMs) {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
+function getErrorMessageFromPayload(payload, fallback) {
+  if (payload && typeof payload.message === "string" && payload.message.trim()) {
+    return payload.message;
+  }
+
+  if (payload && typeof payload.error === "string" && payload.error.trim()) {
+    return payload.error;
+  }
+
+  return fallback;
+}
+
 async function requestBackend(path, options = {}) {
   const timeout = Number(options.timeout || 10000);
-  const candidateBases = [resolvedBackendBase, ...BACKEND_BASES].filter(
+  const backendBases = getBackendBases();
+  const candidateBases = [resolvedBackendBase, ...backendBases].filter(
     (base, index, values) => Boolean(base) && values.indexOf(base) === index
   );
-  const candidatePaths = path.startsWith("/") ? [path, `/analytics${path}`] : [path, `/analytics/${path}`];
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  const candidatePaths = [
+    `/api${normalizedPath}`,
+    normalizedPath,
+    `/analytics${normalizedPath}`,
+  ];
 
   let lastError = null;
 
@@ -31,7 +63,9 @@ async function requestBackend(path, options = {}) {
 
           if (!response.ok) {
             const payload = await response.json().catch(() => ({}));
-            throw new Error(payload.error || payload.message || `Server ${base} returned ${response.status}`);
+            throw new Error(
+              getErrorMessageFromPayload(payload, `Server ${base} returned ${response.status}`)
+            );
           }
 
           resolvedBackendBase = base;
@@ -72,6 +106,74 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim());
 }
 
+function trimTrailingSlash(value) {
+  return String(value || "").trim().replace(/\/+$/, "");
+}
+
+function buildHostedSnippet({ projectId, scriptHost, backendBase }) {
+  const safeProjectId = String(projectId || "my_project").trim() || "my_project";
+  const safeScriptHost = trimTrailingSlash(scriptHost || "https://your-cdn-domain.com/tracker");
+  const safeBackendBase = trimTrailingSlash(backendBase || "https://your-backend-domain.com");
+  return [
+    "<script",
+    `  src=\"${safeScriptHost}/analytics.js\"`,
+    `  data-project-id=\"${safeProjectId}\"`,
+    `  data-endpoint=\"${safeBackendBase}/api/track\"`,
+    "></script>",
+  ].join("\n");
+}
+
+function buildInlineSnippet({ projectId, backendBase }) {
+  const safeProjectId = String(projectId || "my_project").trim() || "my_project";
+  const safeBackendBase = trimTrailingSlash(backendBase || "https://your-backend-domain.com");
+  return [
+    "<script>",
+    "(function () {",
+    `  var PROJECT_ID = \"${safeProjectId}\";`,
+    `  var API_BASE = \"${safeBackendBase}/api\";`,
+    "",
+    "  function getOrCreate(key, storage, prefix) {",
+    "    try {",
+    "      var existing = storage.getItem(key);",
+    "      if (existing) return existing;",
+    "      var next = prefix + \"_\" + Date.now() + \"_\" + Math.random().toString(36).slice(2, 10);",
+    "      storage.setItem(key, next);",
+    "      return next;",
+    "    } catch (_err) {",
+    "      return prefix + \"_\" + Date.now() + \"_\" + Math.random().toString(36).slice(2, 10);",
+    "    }",
+    "  }",
+    "",
+    "  function send(eventName, properties) {",
+    "    var payload = {",
+    "      project_id: PROJECT_ID,",
+    "      user_id: getOrCreate(\"analytics_user_id\", window.localStorage, \"u\"),",
+    "      session_id: getOrCreate(\"analytics_session_id\", window.sessionStorage, \"s\"),",
+    "      event_name: eventName,",
+    "      page: window.location.pathname,",
+    "      properties: properties || {},",
+    "      timestamp: new Date().toISOString(),",
+    "    };",
+    "",
+    "    try {",
+    "      fetch(API_BASE + \"/track\", {",
+    "        method: \"POST\",",
+    "        headers: { \"Content-Type\": \"application/json\" },",
+    "        body: JSON.stringify(payload),",
+    "        keepalive: true,",
+    "      });",
+    "    } catch (_err) {}",
+    "  }",
+    "",
+    "  send(\"page_view\", { href: window.location.href, title: document.title });",
+    "",
+    "  window.analytics = window.analytics || {};",
+    "  window.analytics.track = send;",
+    "})();",
+    "</script>",
+  ].join("\n");
+}
+
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("general");
   const [projectId, setProjectId] = useState("*");
@@ -87,6 +189,18 @@ export default function SettingsPage() {
   const [sourceLabel, setSourceLabel] = useState("");
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [toast, setToast] = useState("");
+  const [scriptHost, setScriptHost] = useState("https://your-cdn-domain.com/tracker");
+  const [backendHost, setBackendHost] = useState(CONFIGURED_BACKEND_BASE || LOCAL_BACKEND_BASE);
+
+  const hostedSnippet = useMemo(
+    () => buildHostedSnippet({ projectId, scriptHost, backendBase: backendHost }),
+    [projectId, scriptHost, backendHost]
+  );
+
+  const inlineSnippet = useMemo(
+    () => buildInlineSnippet({ projectId, backendBase: backendHost }),
+    [projectId, backendHost]
+  );
 
   const prettySource = useMemo(() => {
     if (sourceLabel === "db") return "Project-specific settings";
@@ -221,6 +335,15 @@ export default function SettingsPage() {
     return () => clearTimeout(id);
   }, [toast]);
 
+  async function copyText(value, label) {
+    try {
+      await navigator.clipboard.writeText(String(value || ""));
+      setToast(`${label} copied`);
+    } catch (_err) {
+      setError("Clipboard access failed. Copy manually from the text area.");
+    }
+  }
+
   return (
     <div className="space-y-4">
       <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -238,7 +361,7 @@ export default function SettingsPage() {
           <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="font-display text-lg font-semibold">General</h2>
             <p className="mt-2 text-sm text-slate-600">Environment: Local development</p>
-            <p className="text-sm text-slate-600">Analytics API: https://analyticsapp2-production.up.railway.app/api</p>
+            <p className="text-sm text-slate-600">Analytics API target: {CONFIGURED_BACKEND_BASE || LOCAL_BACKEND_BASE}</p>
             <p className="text-sm text-slate-600">Website app: https://your-production-website-url.com</p>
             <p className="text-sm text-slate-600">Dashboard app: https://your-production-dashboard-url.com</p>
           </article>
@@ -246,6 +369,85 @@ export default function SettingsPage() {
           <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="font-display text-lg font-semibold">Data Retention</h2>
             <p className="mt-2 text-sm text-slate-600">Configure cleanup policies in backend services as needed.</p>
+          </article>
+
+          <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm xl:col-span-2">
+            <h2 className="font-display text-lg font-semibold">Tracking Script Generator</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Generate copy-ready snippets using your project id so events can be filtered per project in the Events page.
+            </p>
+
+            <div className="mt-3 grid gap-3 md:grid-cols-3">
+              <label className="block md:col-span-1">
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Project ID</span>
+                <input
+                  type="text"
+                  value={projectId}
+                  onChange={(e) => setProjectId(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                />
+              </label>
+
+              <label className="block md:col-span-1">
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Script Host</span>
+                <input
+                  type="text"
+                  value={scriptHost}
+                  onChange={(e) => setScriptHost(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="https://cdn.company.com/tracker"
+                />
+              </label>
+
+              <label className="block md:col-span-1">
+                <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">Backend Base</span>
+                <input
+                  type="text"
+                  value={backendHost}
+                  onChange={(e) => setBackendHost(e.target.value)}
+                  className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="https://analytics.yourdomain.com"
+                />
+              </label>
+            </div>
+
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-sm font-semibold text-slate-800">Hosted Script Snippet</p>
+                  <button
+                    type="button"
+                    onClick={() => copyText(hostedSnippet, "Hosted snippet")}
+                    className="rounded-lg border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    Copy
+                  </button>
+                </div>
+                <textarea
+                  readOnly
+                  value={hostedSnippet}
+                  className="h-44 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 font-mono text-xs text-slate-700"
+                />
+              </div>
+
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-sm font-semibold text-slate-800">Inline Script Snippet</p>
+                  <button
+                    type="button"
+                    onClick={() => copyText(inlineSnippet, "Inline snippet")}
+                    className="rounded-lg border border-slate-300 px-3 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  >
+                    Copy
+                  </button>
+                </div>
+                <textarea
+                  readOnly
+                  value={inlineSnippet}
+                  className="h-44 w-full rounded-xl border border-slate-200 bg-slate-50 p-3 font-mono text-xs text-slate-700"
+                />
+              </div>
+            </div>
           </article>
         </section>
       ) : null}
