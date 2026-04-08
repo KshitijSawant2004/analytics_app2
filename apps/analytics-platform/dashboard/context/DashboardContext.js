@@ -70,20 +70,23 @@ function normalizeLibraryWidget(input = {}) {
 function getRecommendedHeight(widget) {
   const isFunnel = widget?.type === "funnel-chart" || widget?.chartType === "funnel";
   if (!isFunnel) {
-    return { h: 5, minH: 4 };
+    return { h: 5, minH: 4, maxH: 8 };
   }
 
   const steps = Array.isArray(widget?.data) ? widget.data.length : 0;
   const h = Math.max(8, Math.min(20, 4 + Math.ceil(steps * 1.6)));
-  return { h, minH: Math.min(h, Math.max(7, h - 2)) };
+  return { h, minH: Math.min(h, Math.max(7, h - 2)), maxH: 22 };
 }
 
 function applyWidgetLayoutSizing(layoutItem, widget) {
   const sizing = getRecommendedHeight(widget);
+  const nextH = Math.min(Math.max(Number(layoutItem?.h || 0), sizing.h), sizing.maxH);
+  const nextMinH = Math.min(Math.max(Number(layoutItem?.minH || 0), sizing.minH), nextH);
   return {
     ...layoutItem,
-    h: Math.max(Number(layoutItem?.h || 0), sizing.h),
-    minH: Math.max(Number(layoutItem?.minH || 0), sizing.minH),
+    h: nextH,
+    minH: nextMinH,
+    maxH: sizing.maxH,
   };
 }
 
@@ -91,12 +94,18 @@ function clampLayoutItemToColumns(layoutItem = {}, cols = 12) {
   const w = Math.max(1, Math.min(Number(layoutItem?.w || 1), cols));
   const minW = Math.max(1, Math.min(Number(layoutItem?.minW || 1), w));
   const x = Math.max(0, Math.min(Number(layoutItem?.x || 0), cols - w));
+  const maxH = Math.max(4, Number(layoutItem?.maxH || 24));
+  const h = Math.max(1, Math.min(Number(layoutItem?.h || 1), maxH));
+  const minH = Math.max(1, Math.min(Number(layoutItem?.minH || 1), h));
 
   return {
     ...layoutItem,
     w,
     minW,
     x,
+    h,
+    minH,
+    maxH,
   };
 }
 
@@ -140,6 +149,7 @@ function appendLayoutItem(layouts, widget) {
     h: sizing.h,
     minW: 2,
     minH: sizing.minH,
+    maxH: sizing.maxH,
   };
 
   return {
@@ -225,6 +235,14 @@ export function DashboardProvider({ children }) {
     window.localStorage.setItem(DASHBOARD_LIBRARY_KEY, JSON.stringify(widgetLibrary));
   }, [hydrated, widgetLibrary]);
 
+  function setDashboardLayoutsSafe(nextLayoutsOrUpdater) {
+    setDashboardLayouts((prev) => {
+      const nextLayouts =
+        typeof nextLayoutsOrUpdater === "function" ? nextLayoutsOrUpdater(prev) : nextLayoutsOrUpdater;
+      return normalizeLayoutsForWidgets(nextLayouts, dashboardWidgets);
+    });
+  }
+
   function saveWidgetToLibrary(widgetInput) {
     const libraryEntry = normalizeLibraryWidget(widgetInput);
     setWidgetLibrary((prev) => upsertLibraryEntry(prev, libraryEntry));
@@ -308,7 +326,7 @@ export function DashboardProvider({ children }) {
   const value = {
     dashboardWidgets,
     dashboardLayouts,
-    setDashboardLayouts,
+    setDashboardLayouts: setDashboardLayoutsSafe,
     widgetLibrary,
     hydrated,
     addWidgetToDashboard,
