@@ -1,5 +1,5 @@
-const BASE_URL = "https://analyticsapp2-production.up.railway.app";
-const RECORD_ENDPOINT = `${BASE_URL}/api/session-record`;
+import { buildApiUrl } from "@/utils/backendBase";
+
 const BATCH_INTERVAL_MS = 5000;
 
 let stopRecording = null;
@@ -48,7 +48,7 @@ export function startSessionRecording() {
 
     const events = eventBuffer.splice(0, eventBuffer.length);
 
-    fetch(RECORD_ENDPOINT, {
+    fetch(buildApiUrl("/session-record"), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

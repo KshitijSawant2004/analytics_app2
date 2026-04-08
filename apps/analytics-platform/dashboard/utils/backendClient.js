@@ -1,4 +1,5 @@
-const BASE_URL = "https://analyticsapp2-production.up.railway.app";
+import { buildApiUrl, getBackendBase } from "@/utils/backendBase";
+
 const GET_CACHE_TTL_MS = 15000;
 const getResponseCache = new Map();
 
@@ -34,19 +35,19 @@ export async function fetchAnalytics(path, options = {}) {
   }
 
   const timeout = Number(options.timeout || 10000);
-  let apiPath = path.startsWith("/api/") ? path : `/api${path.startsWith("/") ? path : "/" + path}`;
+  const apiUrl = buildApiUrl(path);
   let lastError = null;
   for (let attempt = 0; attempt < 2; attempt += 1) {
     let timeoutId;
     try {
       const controller = new AbortController();
       timeoutId = setTimeout(() => controller.abort(), timeout);
-      const response = await fetch(`${BASE_URL}${apiPath}`, {
+      const response = await fetch(apiUrl, {
         ...options,
         signal: controller.signal,
       });
       if (!response.ok) {
-        lastError = new Error(`Server ${BASE_URL} returned status ${response.status}`);
+        lastError = new Error(`Server ${getBackendBase()} returned status ${response.status}`);
         continue;
       }
       const data = await response.json();

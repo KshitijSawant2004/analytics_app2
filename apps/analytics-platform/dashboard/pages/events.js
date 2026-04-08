@@ -1,8 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-
-const BASE_URL = "https://analyticsapp2-production.up.railway.app";
-const CONFIGURED_BACKEND_BASE = process.env.NEXT_PUBLIC_ANALYTICS_BASE;
-const LOCAL_BACKEND_BASE = "http://localhost:4001";
+import { getBackendBase } from "@/utils/backendBase";
 
 const GROUP_OPTIONS = [
   { value: "event_name", label: "Event Name" },
@@ -12,18 +9,6 @@ const GROUP_OPTIONS = [
 ];
 
 let resolvedBackendBase = null;
-
-function getBackendBases() {
-  const isLocalHost =
-    typeof window !== "undefined" &&
-    (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
-
-  const preferred = isLocalHost
-    ? [LOCAL_BACKEND_BASE, CONFIGURED_BACKEND_BASE, BASE_URL]
-    : [CONFIGURED_BACKEND_BASE, BASE_URL, LOCAL_BACKEND_BASE];
-
-  return preferred.filter((base, index, values) => Boolean(base) && values.indexOf(base) === index);
-}
 
 function sleep(delayMs) {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -43,8 +28,7 @@ function getErrorMessageFromPayload(payload, fallback) {
 
 async function requestBackend(path, options = {}) {
   const timeout = Number(options.timeout || 10000);
-  const backendBases = getBackendBases();
-  const candidateBases = [resolvedBackendBase, ...backendBases].filter(
+  const candidateBases = [resolvedBackendBase, getBackendBase()].filter(
     (base, index, values) => Boolean(base) && values.indexOf(base) === index
   );
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;

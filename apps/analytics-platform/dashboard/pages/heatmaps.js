@@ -7,7 +7,7 @@ import { Icons } from "@/components/ui/Icons";
 import { Badge } from "@/components/ui/Badge";
 
 
-const BASE_URL = "https://analyticsapp2-production.up.railway.app";
+import { buildApiUrl } from "@/utils/backendBase";
 
 function sleep(delayMs) {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -34,7 +34,7 @@ async function fetchFromBackend(path, options = {}) {
     try {
       const controller = new AbortController();
       timeoutId = setTimeout(() => controller.abort(), timeout);
-      const response = await fetch(`${BASE_URL}/api${path}`, {
+      const response = await fetch(buildApiUrl(path), {
         ...options,
         signal: controller.signal,
       });

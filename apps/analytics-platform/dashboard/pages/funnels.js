@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/Button";
 import { Icons } from "@/components/ui/Icons";
 import { Badge } from "@/components/ui/Badge";
 
-const BASE_URL = "https://analyticsapp2-production.up.railway.app";
-const ANALYTICS_BASE = BASE_URL;
+import { buildApiUrl, getBackendBase } from "@/utils/backendBase";
+
 const WINDOW_OPTIONS = [
   { label: "1 hour", value: 1 },
   { label: "24 hours", value: 24 },
@@ -127,8 +127,8 @@ export default function FunnelsPage() {
       try {
         const projectQuery = projectId ? `&project_id=${encodeURIComponent(projectId)}` : "";
         const [eventsResponse, funnelsResponse] = await Promise.all([
-          fetch(`${ANALYTICS_BASE}/api/events?groupBy=event_name${projectQuery}`),
-          fetch(`${ANALYTICS_BASE}/api/funnels`),
+          fetch(`${getBackendBase()}/api/events?groupBy=event_name${projectQuery}`),
+          fetch(`${getBackendBase()}/api/funnels`),
         ]);
 
         const eventRows = eventsResponse.ok ? await eventsResponse.json() : [];
@@ -156,7 +156,7 @@ export default function FunnelsPage() {
     setFunnelError("");
 
     try {
-      const response = await fetch(`${ANALYTICS_BASE}/api/funnels/analyze`, {
+      const response = await fetch(buildApiUrl("/funnels/analyze"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -194,8 +194,8 @@ export default function FunnelsPage() {
 
     const method = funnelBuilder.id ? "PUT" : "POST";
     const url = funnelBuilder.id
-      ? `${ANALYTICS_BASE}/api/funnels/${encodeURIComponent(funnelBuilder.id)}`
-      : `${ANALYTICS_BASE}/api/funnels`;
+      ? buildApiUrl(`/funnels/${encodeURIComponent(funnelBuilder.id)}`)
+      : buildApiUrl("/funnels");
 
     try {
       const response = await fetch(url, {
@@ -234,7 +234,7 @@ export default function FunnelsPage() {
 
   async function deleteSavedFunnel(funnelId) {
     try {
-      const response = await fetch(`${ANALYTICS_BASE}/api/funnels/${encodeURIComponent(funnelId)}`, {
+      const response = await fetch(buildApiUrl(`/funnels/${encodeURIComponent(funnelId)}`), {
         method: "DELETE",
       });
 

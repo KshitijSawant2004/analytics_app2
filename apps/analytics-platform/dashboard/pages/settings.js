@@ -1,19 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
+import { getBackendBase } from "@/utils/backendBase";
 
-const BASE_URL = "https://analyticsapp2-production.up.railway.app";
-const CONFIGURED_BACKEND_BASE = process.env.NEXT_PUBLIC_ANALYTICS_BASE;
-const LOCAL_BACKEND_BASE = "http://localhost:4001";
 let resolvedBackendBase = null;
 
 function getBackendBases() {
-  const isLocalHost = typeof window !== "undefined"
-    && (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
-
-  const preferred = isLocalHost
-    ? [LOCAL_BACKEND_BASE, CONFIGURED_BACKEND_BASE, BASE_URL]
-    : [CONFIGURED_BACKEND_BASE, BASE_URL, LOCAL_BACKEND_BASE];
-
-  return preferred.filter((base, index, values) => Boolean(base) && values.indexOf(base) === index);
+  return [getBackendBase()];
 }
 
 function sleep(delayMs) {
@@ -190,7 +181,7 @@ export default function SettingsPage() {
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [toast, setToast] = useState("");
   const [scriptHost, setScriptHost] = useState("https://your-cdn-domain.com/tracker");
-  const [backendHost, setBackendHost] = useState(CONFIGURED_BACKEND_BASE || LOCAL_BACKEND_BASE);
+  const [backendHost, setBackendHost] = useState(getBackendBase());
 
   const hostedSnippet = useMemo(
     () => buildHostedSnippet({ projectId, scriptHost, backendBase: backendHost }),
@@ -361,7 +352,7 @@ export default function SettingsPage() {
           <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="font-display text-lg font-semibold">General</h2>
             <p className="mt-2 text-sm text-slate-600">Environment: Local development</p>
-            <p className="text-sm text-slate-600">Analytics API target: {CONFIGURED_BACKEND_BASE || LOCAL_BACKEND_BASE}</p>
+            <p className="text-sm text-slate-600">Analytics API target: {getBackendBase()}</p>
             <p className="text-sm text-slate-600">Website app: https://your-production-website-url.com</p>
             <p className="text-sm text-slate-600">Dashboard app: https://your-production-dashboard-url.com</p>
           </article>
