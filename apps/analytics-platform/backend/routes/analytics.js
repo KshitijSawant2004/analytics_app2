@@ -1096,7 +1096,8 @@ router.get("/events", async (req, res) => {
     const whereParts = [];
     const values = [];
 
-    if (projectId) {
+    // Only filter by project_id if it's not "*" (wildcard for all projects)
+    if (projectId && projectId !== "*") {
       values.push(projectId);
       whereParts.push(`project_id = $${values.length}`);
     }
