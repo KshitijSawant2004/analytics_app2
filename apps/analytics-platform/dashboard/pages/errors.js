@@ -1,17 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/router";
 import Link from "next/link";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { useDashboard } from "@/context/DashboardContext";
 import { fetchAnalytics, toQuery } from "@/utils/backendClient";
 import { useWorkspace } from "@/context/WorkspaceContext";
-import { getDefaultAnalyticsProjectId } from "@/utils/projectScope";
+import { resolveActiveProjectId, setActiveProjectId } from "@/utils/projectScope";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Icons } from "@/components/ui/Icons";
 import { Badge } from "@/components/ui/Badge";
 
 export default function ErrorsPage() {
-  const projectId = getDefaultAnalyticsProjectId();
+  const router = useRouter();
+  const [projectId, setProjectId] = useState(resolveActiveProjectId());
   const { resolvedRange } = useWorkspace();
   const { addWidgetToDashboard } = useDashboard();
   const [summary, setSummary] = useState({
@@ -187,8 +189,15 @@ export default function ErrorsPage() {
   }
 
   useEffect(() => {
+    if (!router.isReady) return;
+    const next = resolveActiveProjectId(router.query.project_id);
+    setProjectId(next);
+    setActiveProjectId(next);
+  }, [router.isReady, router.query.project_id]);
+
+  useEffect(() => {
     refreshErrors();
-  }, [resolvedRange.endDate, resolvedRange.startDate, statusFilter]);
+  }, [projectId, resolvedRange.endDate, resolvedRange.startDate, statusFilter]);
 
   const filteredEvents = useMemo(() => {
     return errorEvents.filter(event => 

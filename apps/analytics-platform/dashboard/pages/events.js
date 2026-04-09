@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/router";
 import { getBackendBase } from "@/utils/backendBase";
-import { getDefaultAnalyticsProjectId } from "@/utils/projectScope";
+import { resolveActiveProjectId, setActiveProjectId } from "@/utils/projectScope";
 
 const GROUP_OPTIONS = [
   { value: "event_name", label: "Event Name" },
@@ -74,7 +75,8 @@ async function requestBackend(path, options = {}) {
 }
 
 export default function EventsPage() {
-  const [projectId, setProjectId] = useState(getDefaultAnalyticsProjectId());
+  const router = useRouter();
+  const [projectId, setProjectId] = useState(resolveActiveProjectId());
   const [eventFilter, setEventFilter] = useState("");
   const [groupBy, setGroupBy] = useState("event_name");
   const [rows, setRows] = useState([]);
@@ -108,8 +110,15 @@ export default function EventsPage() {
   }
 
   useEffect(() => {
+    if (!router.isReady) return;
+    const next = resolveActiveProjectId(router.query.project_id);
+    setProjectId(next);
+    setActiveProjectId(next);
+  }, [router.isReady, router.query.project_id]);
+
+  useEffect(() => {
     void loadEvents();
-  }, []);
+  }, [projectId]);
 
   return (
     <div className="space-y-4">

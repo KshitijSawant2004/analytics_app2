@@ -7,7 +7,7 @@ import ChartRenderer from "@/components/ChartRenderer";
 import { useDashboard } from "@/context/DashboardContext";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { fetchAnalytics, toQuery } from "@/utils/backendClient";
-import { getDefaultAnalyticsProjectId } from "@/utils/projectScope";
+import { resolveActiveProjectId, setActiveProjectId } from "@/utils/projectScope";
 
 const QUICK_START_WIDGETS = [
   { type: "event-volume", title: "Event Volume", chartType: "line" },
@@ -41,7 +41,8 @@ function between(dateValue, startDate, endDate) {
 }
 
 export default function DashboardOverviewPage() {
-  const projectId = getDefaultAnalyticsProjectId();
+  const router = useRouter();
+  const [projectId, setProjectId] = useState(resolveActiveProjectId());
   const { width, containerRef } = useContainerWidth({ initialWidth: 1200 });
   const { resolvedRange, searchText } = useWorkspace();
   const {
@@ -57,7 +58,6 @@ export default function DashboardOverviewPage() {
     removeLibraryWidget,
     clearDashboard,
   } = useDashboard();
-  const router = useRouter();
   const [dataByType, setDataByType] = useState({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -68,6 +68,13 @@ export default function DashboardOverviewPage() {
 
   const activeGridCols = width < 480 ? 1 : 12;
   const gridColumnWidth = Math.max(1, width / activeGridCols);
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    const next = resolveActiveProjectId(router.query.project_id);
+    setProjectId(next);
+    setActiveProjectId(next);
+  }, [router.isReady, router.query.project_id]);
 
   useEffect(() => {
     let ignore = false;
@@ -188,7 +195,7 @@ export default function DashboardOverviewPage() {
     return () => {
       ignore = true;
     };
-  }, [resolvedRange.endDate, resolvedRange.startDate]);
+  }, [projectId, resolvedRange.endDate, resolvedRange.startDate]);
 
   const visibleWidgets = useMemo(() => {
     if (!searchText.trim()) return dashboardWidgets;

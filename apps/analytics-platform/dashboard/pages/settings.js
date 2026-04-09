@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/router";
 import { getBackendBase } from "@/utils/backendBase";
-import { getDefaultAnalyticsProjectId } from "@/utils/projectScope";
+import { resolveActiveProjectId, setActiveProjectId } from "@/utils/projectScope";
 
 let resolvedBackendBase = null;
 
@@ -167,8 +168,9 @@ function buildInlineSnippet({ projectId, backendBase }) {
 }
 
 export default function SettingsPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("general");
-  const [projectId, setProjectId] = useState(getDefaultAnalyticsProjectId());
+  const [projectId, setProjectId] = useState(resolveActiveProjectId());
   const [emailInput, setEmailInput] = useState("");
   const [emails, setEmails] = useState([]);
   const [alertsEnabled, setAlertsEnabled] = useState(true);
@@ -200,6 +202,13 @@ export default function SettingsPage() {
     if (sourceLabel === "env") return "Backend .env fallback";
     return "";
   }, [sourceLabel]);
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    const next = resolveActiveProjectId(router.query.project_id);
+    setProjectId(next);
+    setActiveProjectId(next);
+  }, [router.isReady, router.query.project_id]);
 
   async function loadAlertSettings() {
     try {

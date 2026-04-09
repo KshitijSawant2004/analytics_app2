@@ -3,6 +3,11 @@ import { useRouter } from "next/router";
 import { useMemo, useState, useRef, useEffect } from "react";
 import { Icons } from "./ui/Icons";
 import { Button } from "./ui/Button";
+import {
+  getDefaultAnalyticsProjectId,
+  resolveActiveProjectId,
+  setActiveProjectId,
+} from "@/utils/projectScope";
 
 const NAV_ITEMS = [
   { href: "/", label: "Overview" },
@@ -26,6 +31,8 @@ export default function AppShell({ children }) {
   const router = useRouter();
   const [range, setRange] = useState("7d");
   const [searchText, setSearchText] = useState("");
+  const [projectId, setProjectId] = useState(getDefaultAnalyticsProjectId());
+  const [projectInput, setProjectInput] = useState(getDefaultAnalyticsProjectId());
   const [showFilters, setShowFilters] = useState(false);
   const userInitials = useMemo(() => "AN", []);
   
@@ -41,6 +48,37 @@ export default function AppShell({ children }) {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    const nextProjectId = resolveActiveProjectId(router.query.project_id);
+    setProjectId(nextProjectId);
+    setProjectInput(nextProjectId);
+    setActiveProjectId(nextProjectId);
+  }, [router.isReady, router.query.project_id]);
+
+  function applyProjectSelection() {
+    const next = String(projectInput || "").trim() || getDefaultAnalyticsProjectId();
+    if (next === projectId && String(router.query.project_id || "").trim() === next) {
+      return;
+    }
+
+    setProjectId(next);
+    setProjectInput(next);
+    setActiveProjectId(next);
+
+    router.replace(
+      {
+        pathname: router.pathname,
+        query: {
+          ...router.query,
+          project_id: next,
+        },
+      },
+      undefined,
+      { shallow: true }
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#fafafa] text-slate-900 font-sans selection:bg-blue-100 selection:text-blue-900 flex flex-col">
@@ -74,6 +112,26 @@ export default function AppShell({ children }) {
           </div>
 
           <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-2 py-1 max-w-[68vw] md:max-w-none">
+              <span className="px-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Project</span>
+              <input
+                type="text"
+                value={projectInput}
+                onChange={(e) => setProjectInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    applyProjectSelection();
+                  }
+                }}
+                className="h-8 w-32 md:w-48 rounded-full border border-slate-200 bg-white px-3 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="finfinity_website_UAT"
+              />
+              <Button variant="secondary" size="sm" onClick={applyProjectSelection} className="h-8 px-3">
+                Apply
+              </Button>
+            </div>
+
             <div className="hidden md:flex relative group">
               <Icons.Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
