@@ -4,12 +4,14 @@ import { Area, AreaChart, Bar, BarChart, CartesianGrid, ResponsiveContainer, Too
 import { useDashboard } from "@/context/DashboardContext";
 import { fetchAnalytics, toQuery } from "@/utils/backendClient";
 import { useWorkspace } from "@/context/WorkspaceContext";
+import { getDefaultAnalyticsProjectId } from "@/utils/projectScope";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Icons } from "@/components/ui/Icons";
 import { Badge } from "@/components/ui/Badge";
 
 export default function ErrorsPage() {
+  const projectId = getDefaultAnalyticsProjectId();
   const { resolvedRange } = useWorkspace();
   const { addWidgetToDashboard } = useDashboard();
   const [summary, setSummary] = useState({
@@ -124,7 +126,7 @@ export default function ErrorsPage() {
       setError("");
 
       const [summaryPayload, eventsData] = await Promise.all([
-        fetchAnalytics("/frontend-errors/summary", { skipCache: true }).catch(() => ({
+        fetchAnalytics(`/frontend-errors/summary?${toQuery({ project_id: projectId })}`, { skipCache: true }).catch(() => ({
           top_errors: [],
           frequency: [],
           replay_sessions: [],
@@ -134,7 +136,7 @@ export default function ErrorsPage() {
           unresolved_errors: 0,
         })),
         fetchAnalytics(
-          `/frontend-errors/events?${toQuery({ limit: 120, status: statusFilter })}`,
+          `/frontend-errors/events?${toQuery({ limit: 120, status: statusFilter, project_id: projectId })}`,
           { skipCache: true }
         ).catch(() => ({ by_page: [], events: [] })),
       ]);

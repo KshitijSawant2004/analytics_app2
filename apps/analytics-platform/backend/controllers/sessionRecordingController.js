@@ -43,6 +43,7 @@ async function createFrontendError(req, res) {
     const {
       user_id,
       session_id,
+      project_id,
       message,
       stack,
       page,
@@ -63,6 +64,7 @@ async function createFrontendError(req, res) {
     await sessionMonitoringService.recordFrontendError({
       user_id,
       session_id,
+      project_id,
       message,
       stack,
       page,

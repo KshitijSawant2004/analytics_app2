@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { getBackendBase } from "@/utils/backendBase";
+import { getDefaultAnalyticsProjectId } from "@/utils/projectScope";
 
 let resolvedBackendBase = null;
 
@@ -167,7 +168,7 @@ function buildInlineSnippet({ projectId, backendBase }) {
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("general");
-  const [projectId, setProjectId] = useState("*");
+  const [projectId, setProjectId] = useState(getDefaultAnalyticsProjectId());
   const [emailInput, setEmailInput] = useState("");
   const [emails, setEmails] = useState([]);
   const [alertsEnabled, setAlertsEnabled] = useState(true);

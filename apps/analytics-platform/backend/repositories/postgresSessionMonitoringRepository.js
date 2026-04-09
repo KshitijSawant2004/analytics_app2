@@ -84,6 +84,7 @@ async function ensureTables() {
       id UUID PRIMARY KEY,
       user_id TEXT NOT NULL,
       session_id TEXT NOT NULL,
+      project_id TEXT,
       message TEXT NOT NULL,
       stack TEXT,
       page TEXT,
@@ -258,6 +259,7 @@ async function insertSessionRecordingBatch({
 async function insertFrontendError({
   user_id,
   session_id,
+  project_id,
   message,
   stack,
   page,
@@ -277,6 +279,7 @@ async function insertFrontendError({
       id,
       user_id,
       session_id,
+      project_id,
       message,
       stack,
       page,
@@ -289,7 +292,7 @@ async function insertFrontendError({
       user_agent,
       timestamp
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::timestamptz)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::timestamptz)
   `;
 
   const normalizedLine = Number.isFinite(Number(line_number)) ? Number(line_number) : null;
@@ -299,6 +302,7 @@ async function insertFrontendError({
     uuidv4(),
     String(user_id || ""),
     String(session_id || ""),
+    project_id ? String(project_id) : null,
     String(message || ""),
     stack || null,
     page || null,

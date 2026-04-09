@@ -7,6 +7,7 @@ import ChartRenderer from "@/components/ChartRenderer";
 import { useDashboard } from "@/context/DashboardContext";
 import { useWorkspace } from "@/context/WorkspaceContext";
 import { fetchAnalytics, toQuery } from "@/utils/backendClient";
+import { getDefaultAnalyticsProjectId } from "@/utils/projectScope";
 
 const QUICK_START_WIDGETS = [
   { type: "event-volume", title: "Event Volume", chartType: "line" },
@@ -40,6 +41,7 @@ function between(dateValue, startDate, endDate) {
 }
 
 export default function DashboardOverviewPage() {
+  const projectId = getDefaultAnalyticsProjectId();
   const { width, containerRef } = useContainerWidth({ initialWidth: 1200 });
   const { resolvedRange, searchText } = useWorkspace();
   const {
@@ -76,8 +78,8 @@ export default function DashboardOverviewPage() {
 
       try {
         const [overview, errorSummary, journeys, heatmapPages] = await Promise.all([
-          fetchAnalytics("/overview").catch(() => ({ metrics: {}, recent_activity: [] })),
-          fetchAnalytics("/frontend-errors/summary").catch(() => ({ frequency: [], top_errors: [] })),
+          fetchAnalytics(`/overview?${toQuery({ project_id: projectId })}`).catch(() => ({ metrics: {}, recent_activity: [] })),
+          fetchAnalytics(`/frontend-errors/summary?${toQuery({ project_id: projectId })}`).catch(() => ({ frequency: [], top_errors: [] })),
           fetchAnalytics(`/user-journeys?${toQuery({ limit: 20 })}`).catch(() => ({ transitions: [] })),
           fetchAnalytics(
             `/heatmap/pages?${toQuery({

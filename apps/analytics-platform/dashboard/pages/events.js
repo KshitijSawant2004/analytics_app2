@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { getBackendBase } from "@/utils/backendBase";
+import { getDefaultAnalyticsProjectId } from "@/utils/projectScope";
 
 const GROUP_OPTIONS = [
   { value: "event_name", label: "Event Name" },
@@ -73,7 +74,7 @@ async function requestBackend(path, options = {}) {
 }
 
 export default function EventsPage() {
-  const [projectId, setProjectId] = useState("*");
+  const [projectId, setProjectId] = useState(getDefaultAnalyticsProjectId());
   const [eventFilter, setEventFilter] = useState("");
   const [groupBy, setGroupBy] = useState("event_name");
   const [rows, setRows] = useState([]);
@@ -125,7 +126,7 @@ export default function EventsPage() {
               type="text"
               value={projectId}
               onChange={(e) => setProjectId(e.target.value)}
-              placeholder="demo123 or *"
+              placeholder="finfinity_website_UAT"
               className="w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
             />
           </label>

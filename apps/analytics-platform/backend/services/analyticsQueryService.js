@@ -241,6 +241,7 @@ async function executeAnalyticsQuery(params) {
     endDate,
     filterText,
     breakdown,
+    projectId,
   } = params;
 
   // Validate required parameters
@@ -254,6 +255,11 @@ async function executeAnalyticsQuery(params) {
 
   const interval = getInterval(startDate, endDate);
   const { clauses, values } = buildWhereClause({ eventNames, startDate, endDate, filterText });
+
+  if (projectId) {
+    values.push(String(projectId));
+    clauses.push(`project_id = $${values.length}`);
+  }
 
   // Map groupBy to SQL column names
   const groupByMap = {

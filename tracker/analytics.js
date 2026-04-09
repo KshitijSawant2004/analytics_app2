@@ -644,6 +644,7 @@
         var body = JSON.stringify({
           user_id: userId,
           session_id: sessionId,
+          project_id: projectId,
           message: String(payload.message || "Unknown frontend error"),
           stack: payload.stack ? String(payload.stack) : null,
           page: payload.page ? String(payload.page) : safeGetPathname(),

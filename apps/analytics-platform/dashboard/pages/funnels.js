@@ -8,6 +8,7 @@ import { Icons } from "@/components/ui/Icons";
 import { Badge } from "@/components/ui/Badge";
 
 import { buildApiUrl, getBackendBase } from "@/utils/backendBase";
+import { getDefaultAnalyticsProjectId } from "@/utils/projectScope";
 
 const WINDOW_OPTIONS = [
   { label: "1 hour", value: 1 },
@@ -73,6 +74,9 @@ export default function FunnelsPage() {
     let next = String(router.query.project_id || "").trim();
     if (!next && typeof window !== "undefined") {
       next = String(window.localStorage.getItem("analytics_active_project_id") || "").trim();
+    }
+    if (!next) {
+      next = getDefaultAnalyticsProjectId();
     }
     if (next) {
       setProjectId(next);

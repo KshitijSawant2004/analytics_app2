@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchAnalytics } from "@/utils/backendClient";
+import { getDefaultAnalyticsProjectId } from "@/utils/projectScope";
 
 const DEFAULT_EVENT_FALLBACK = [
   "page_view",
@@ -50,6 +51,7 @@ export function useAnalyticsQuery(queryParams) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          project_id: getDefaultAnalyticsProjectId(),
           events: params.events,
           metric: params.metric || "count",
           chartType: params.chartType,
@@ -101,7 +103,7 @@ export async function fetchEventsList() {
 
   try {
     // Primary source: purpose-built endpoint.
-    const eventsData = await fetchAnalytics("/events?groupBy=event_name", {
+    const eventsData = await fetchAnalytics(`/events?${new URLSearchParams({ groupBy: "event_name", project_id: getDefaultAnalyticsProjectId() }).toString()}`, {
       attempts: 2,
       timeout: 15000,
     }).catch(() => []);
@@ -111,7 +113,7 @@ export async function fetchEventsList() {
     }
 
     // Secondary source: overview activity feed.
-    const overview = await fetchAnalytics("/overview", {
+    const overview = await fetchAnalytics(`/overview?${new URLSearchParams({ project_id: getDefaultAnalyticsProjectId() }).toString()}`, {
       attempts: 2,
       timeout: 15000,
     }).catch(() => ({ recent_activity: [] }));

@@ -52,6 +52,7 @@ async function ensureFrontendErrorsColumns() {
     if (!hasFrontendErrors) return;
 
     await pool.query(`ALTER TABLE frontend_errors ADD COLUMN IF NOT EXISTS page_url TEXT`);
+    await pool.query(`ALTER TABLE frontend_errors ADD COLUMN IF NOT EXISTS project_id TEXT`);
     await pool.query(`ALTER TABLE frontend_errors ADD COLUMN IF NOT EXISTS page_path TEXT`);
     await pool.query(`ALTER TABLE frontend_errors ADD COLUMN IF NOT EXISTS source_file TEXT`);
     await pool.query(`ALTER TABLE frontend_errors ADD COLUMN IF NOT EXISTS line_number INTEGER`);
@@ -670,8 +671,10 @@ router.get("/session-recordings/:sessionId/dead-clicks", getDeadClicksForSession
 router.delete("/session-recordings", deleteAllSessionRecordings);
 router.delete("/session-recordings/:sessionId", deleteSessionRecording);
 
-router.get("/overview", async (_req, res) => {
+router.get("/overview", async (req, res) => {
   try {
+    const projectId = String(req.query.project_id || "").trim();
+    const hasProjectFilter = Boolean(projectId);
     const [hasEvents, hasFrontendErrors, hasSessionRecordings] = await Promise.all([
       tableExists("events"),
       tableExists("frontend_errors"),
@@ -679,12 +682,18 @@ router.get("/overview", async (_req, res) => {
     ]);
 
     const [totalEventsResult, totalUsersResult, totalSessionsResult, totalErrorsResult, recentActivityResult] = await Promise.all([
-      hasEvents ? pool.query(`SELECT COUNT(*)::int AS value FROM events`) : Promise.resolve({ rows: [{ value: 0 }] }),
-      hasEvents ? pool.query(`SELECT COUNT(DISTINCT user_id)::int AS value FROM events`) : Promise.resolve({ rows: [{ value: 0 }] }),
+      hasEvents
+        ? pool.query(`SELECT COUNT(*)::int AS value FROM events${hasProjectFilter ? " WHERE project_id = $1" : ""}`, hasProjectFilter ? [projectId] : [])
+        : Promise.resolve({ rows: [{ value: 0 }] }),
+      hasEvents
+        ? pool.query(`SELECT COUNT(DISTINCT user_id)::int AS value FROM events${hasProjectFilter ? " WHERE project_id = $1" : ""}`, hasProjectFilter ? [projectId] : [])
+        : Promise.resolve({ rows: [{ value: 0 }] }),
       hasSessionRecordings
         ? pool.query(`SELECT COUNT(DISTINCT session_id)::int AS value FROM session_recordings`)
         : Promise.resolve({ rows: [{ value: 0 }] }),
-      hasFrontendErrors ? pool.query(`SELECT COUNT(*)::int AS value FROM frontend_errors`) : Promise.resolve({ rows: [{ value: 0 }] }),
+      hasFrontendErrors
+        ? pool.query(`SELECT COUNT(*)::int AS value FROM frontend_errors${hasProjectFilter ? " WHERE project_id = $1" : ""}`, hasProjectFilter ? [projectId] : [])
+        : Promise.resolve({ rows: [{ value: 0 }] }),
       hasEvents
         ? pool.query(`
             SELECT
@@ -694,9 +703,10 @@ router.get("/overview", async (_req, res) => {
               page,
               created_at
             FROM events
+            ${hasProjectFilter ? "WHERE project_id = $1" : ""}
             ORDER BY created_at DESC
             LIMIT 20
-          `)
+          `, hasProjectFilter ? [projectId] : [])
         : Promise.resolve({ rows: [] }),
     ]);
 
@@ -748,6 +758,7 @@ router.get("/overview", async (_req, res) => {
 router.post("/query", async (req, res) => {
   try {
     const {
+      project_id,
       events,
       eventNames,
       metric = "count",
@@ -761,6 +772,7 @@ router.post("/query", async (req, res) => {
     } = req.body;
 
     const selectedEvents = Array.isArray(events) ? events : Array.isArray(eventNames) ? eventNames : [];
+    const projectId = String(project_id || "").trim();
 
     // Validate inputs
     if (!Array.isArray(selectedEvents) || selectedEvents.length === 0) {
@@ -791,6 +803,7 @@ router.post("/query", async (req, res) => {
       breakdown,
       startDate,
       endDate,
+      projectId: projectId || undefined,
     });
 
     return res.json(result);
@@ -807,8 +820,9 @@ router.get("/heatmap/snapshot", getLatestPageSnapshot);
 router.get("/heatmap/pages", getPageUrls);
 router.get("/heatmap/stats", getHeatmapStats);
 
-router.get("/frontend-errors/summary", async (_req, res) => {
+router.get("/frontend-errors/summary", async (req, res) => {
   try {
+    const projectId = String(req.query.project_id || "").trim();
     const hasFrontendErrors = await tableExists("frontend_errors");
     if (!hasFrontendErrors) {
       return res.json({
@@ -824,6 +838,9 @@ router.get("/frontend-errors/summary", async (_req, res) => {
 
     await ensureFrontendErrorsColumns();
 
+    const projectWhere = projectId ? "WHERE project_id = $1" : "";
+    const projectValues = projectId ? [projectId] : [];
+
     const [topErrorsResult, frequencyResult, sessionsResult, replaySessionsResult] = await Promise.all([
       pool.query(`
         SELECT
@@ -831,19 +848,21 @@ router.get("/frontend-errors/summary", async (_req, res) => {
           COUNT(*)::int AS count,
           COUNT(DISTINCT session_id)::int AS sessions_affected
         FROM frontend_errors
+        ${projectWhere}
         GROUP BY message
         ORDER BY count DESC
         LIMIT 10
-      `),
+      `, projectValues),
       pool.query(`
         SELECT
           DATE(COALESCE(timestamp, created_at))::text AS date,
           COUNT(*)::int AS count
         FROM frontend_errors
+        ${projectWhere}
         GROUP BY DATE(COALESCE(timestamp, created_at))
         ORDER BY DATE(COALESCE(timestamp, created_at)) DESC
         LIMIT 14
-      `),
+      `, projectValues),
       pool.query(`
         SELECT
           COUNT(DISTINCT session_id)::int AS sessions_affected,
@@ -851,7 +870,8 @@ router.get("/frontend-errors/summary", async (_req, res) => {
           COUNT(*) FILTER (WHERE resolved = TRUE)::int AS resolved_errors,
           COUNT(*) FILTER (WHERE resolved = FALSE)::int AS unresolved_errors
         FROM frontend_errors
-      `),
+        ${projectWhere}
+      `, projectValues),
       pool.query(`
         SELECT
           session_id,
@@ -859,11 +879,11 @@ router.get("/frontend-errors/summary", async (_req, res) => {
           COUNT(*)::int AS error_count,
           MAX(COALESCE(timestamp, created_at)) AS last_seen
         FROM frontend_errors
-        WHERE session_id IS NOT NULL
+        ${projectWhere ? `${projectWhere} AND` : "WHERE"} session_id IS NOT NULL
         GROUP BY session_id, user_id
         ORDER BY error_count DESC, last_seen DESC
         LIMIT 20
-      `),
+      `, projectValues),
     ]);
 
     return res.json({
@@ -894,13 +914,30 @@ router.get("/frontend-errors/events", async (req, res) => {
     const limit = Number.isFinite(requestedLimit)
       ? Math.min(Math.max(requestedLimit, 20), 500)
       : 120;
+    const projectId = String(req.query.project_id || "").trim();
     const statusFilter = String(req.query.status || "all").trim().toLowerCase();
-    const whereResolvedSql =
-      statusFilter === "resolved"
-        ? "WHERE resolved = TRUE"
-        : statusFilter === "unresolved"
-        ? "WHERE resolved = FALSE"
-        : "";
+    const statusParts = [];
+    if (statusFilter === "resolved") {
+      statusParts.push("resolved = TRUE");
+    } else if (statusFilter === "unresolved") {
+      statusParts.push("resolved = FALSE");
+    }
+
+    const byPageParts = [...statusParts];
+    const byPageValues = [];
+    if (projectId) {
+      byPageValues.push(projectId);
+      byPageParts.push(`project_id = $${byPageValues.length}`);
+    }
+    const byPageWhereSql = byPageParts.length > 0 ? `WHERE ${byPageParts.join(" AND ")}` : "";
+
+    const eventsParts = [...statusParts];
+    const eventsValues = [limit];
+    if (projectId) {
+      eventsValues.push(projectId);
+      eventsParts.push(`project_id = $${eventsValues.length}`);
+    }
+    const eventsWhereSql = eventsParts.length > 0 ? `WHERE ${eventsParts.join(" AND ")}` : "";
 
     const [byPageResult, eventsResult] = await Promise.all([
       pool.query(
@@ -914,11 +951,12 @@ router.get("/frontend-errors/events", async (req, res) => {
             ) AS page,
             COUNT(*)::int AS count
           FROM frontend_errors
-          ${whereResolvedSql}
+          ${byPageWhereSql}
           GROUP BY 1
           ORDER BY count DESC, page ASC
           LIMIT 20
-        `
+        `,
+        byPageValues
       ),
       pool.query(
         `
@@ -942,11 +980,11 @@ router.get("/frontend-errors/events", async (req, res) => {
             timestamp,
             created_at
           FROM frontend_errors
-          ${whereResolvedSql}
+          ${eventsWhereSql}
           ORDER BY COALESCE(timestamp, created_at) DESC
           LIMIT $1
         `,
-        [limit]
+        eventsValues
       ),
     ]);
 
@@ -963,6 +1001,7 @@ router.get("/frontend-errors/events", async (req, res) => {
 router.get("/frontend-errors/:id/logs", async (req, res) => {
   try {
     const id = String(req.params.id || "").trim();
+    const projectId = String(req.query.project_id || "").trim();
     if (!id) {
       return res.status(400).json({ error: "Error id is required" });
     }
@@ -991,10 +1030,10 @@ router.get("/frontend-errors/:id/logs", async (req, res) => {
           timestamp,
           created_at
         FROM frontend_errors
-        WHERE id = $1
+        WHERE id = $1${projectId ? " AND project_id = $2" : ""}
         LIMIT 1
       `,
-      [id]
+      projectId ? [id, projectId] : [id]
     );
 
     if (primaryResult.rows.length === 0) {
@@ -1020,7 +1059,7 @@ router.get("/frontend-errors/:id/logs", async (req, res) => {
         ORDER BY COALESCE(timestamp, created_at) DESC
         LIMIT 15
       `,
-      [String(primary.message || "")]
+      projectId ? [String(primary.message || ""), projectId] : [String(primary.message || "")]
     );
 
     return res.json({
