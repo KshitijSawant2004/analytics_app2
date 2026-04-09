@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/router";
 import IframeHeatmapOverlay from "@/components/IframeHeatmapOverlay";
 import HeatmapStats from "@/components/HeatmapStats";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Icons } from "@/components/ui/Icons";
 import { Badge } from "@/components/ui/Badge";
+import { resolveActiveProjectId, setActiveProjectId } from "@/utils/projectScope";
 
 
 import { buildApiUrl } from "@/utils/backendBase";
@@ -56,6 +58,8 @@ async function fetchFromBackend(path, options = {}) {
 }
 
 export default function HeatmapsPage() {
+  const router = useRouter();
+
   const defaultStartDate = useMemo(() => {
     const date = new Date();
     date.setDate(date.getDate() - 7);
@@ -78,21 +82,32 @@ export default function HeatmapsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [projectId, setProjectId] = useState(resolveActiveProjectId());
+
+  useEffect(() => {
+    if (!router.isReady) return;
+    const next = resolveActiveProjectId(router.query.project_id);
+    setProjectId(next);
+    setActiveProjectId(next);
+  }, [router.isReady, router.query.project_id]);
 
   useEffect(() => {
     const fetchPages = async () => {
       try {
         const response = await fetchFromBackend(
-          `/heatmap/pages?start_date=${filters.startDate}T00:00:00Z&end_date=${filters.endDate}T23:59:59Z`
+          `/heatmap/pages?start_date=${filters.startDate}T00:00:00Z&end_date=${filters.endDate}T23:59:59Z&project_id=${encodeURIComponent(projectId)}`
         );
 
         if (response.success && Array.isArray(response.data)) {
           setPages(response.data);
-          if (!filters.selectedPage && response.data.length > 0) {
+          if (response.data.length === 0) {
+            setFilters((prev) => ({ ...prev, selectedPage: "" }));
+          } else if (!response.data.includes(filters.selectedPage)) {
             setFilters((prev) => ({ ...prev, selectedPage: response.data[0] }));
           }
         } else {
           setPages([]);
+          setFilters((prev) => ({ ...prev, selectedPage: "" }));
         }
       } catch (err) {
         console.error("Error fetching pages", err);
@@ -104,7 +119,7 @@ export default function HeatmapsPage() {
     };
 
     fetchPages();
-  }, [filters.endDate, filters.startDate]);
+  }, [filters.endDate, filters.startDate, projectId]);
 
   useEffect(() => {
     if (!filters.selectedPage) {
@@ -122,7 +137,7 @@ export default function HeatmapsPage() {
         const { selectedPage, startDate, endDate, deviceType, mode, bucketSize } = filters;
         let queryParams = `?page_url=${encodeURIComponent(
           selectedPage
-        )}&start_date=${startDate}T00:00:00Z&end_date=${endDate}T23:59:59Z&bucket_size=${encodeURIComponent(bucketSize)}`;
+        )}&start_date=${startDate}T00:00:00Z&end_date=${endDate}T23:59:59Z&bucket_size=${encodeURIComponent(bucketSize)}&project_id=${encodeURIComponent(projectId)}`;
 
         if (deviceType !== "all") {
           queryParams += `&device_type=${encodeURIComponent(deviceType)}`;
@@ -134,7 +149,7 @@ export default function HeatmapsPage() {
           fetchFromBackend(
             `/heatmap/stats?page_url=${encodeURIComponent(
               selectedPage
-            )}&start_date=${startDate}T00:00:00Z&end_date=${endDate}T23:59:59Z`
+            )}&start_date=${startDate}T00:00:00Z&end_date=${endDate}T23:59:59Z&project_id=${encodeURIComponent(projectId)}`
           ),
         ]);
 
@@ -150,7 +165,7 @@ export default function HeatmapsPage() {
     };
 
     fetchHeatmapData();
-  }, [filters]);
+  }, [filters, projectId]);
 
   return (
     <div className="space-y-6 pb-6">

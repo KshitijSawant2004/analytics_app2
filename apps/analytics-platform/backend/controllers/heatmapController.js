@@ -13,6 +13,7 @@ async function recordClickEvent(req, res) {
 
     for (const clickEvent of clickEvents) {
       const {
+        project_id,
         user_id,
         session_id,
         page_url,
@@ -40,7 +41,14 @@ async function recordClickEvent(req, res) {
       }
 
       try {
+        const resolvedProjectId =
+          (clickEvent.project_id ? String(clickEvent.project_id).trim() : "") ||
+          (singleEvent.project_id ? String(singleEvent.project_id).trim() : "") ||
+          (req.query.project_id ? String(req.query.project_id).trim() : "") ||
+          null;
+
         const result = await heatmapService.recordClick({
+          project_id: resolvedProjectId,
           user_id,
           session_id,
           page_url,
@@ -92,6 +100,7 @@ async function recordHoverEvent(req, res) {
 
     for (const hoverEvent of hoverEvents) {
       const {
+        project_id,
         user_id,
         session_id,
         page_url,
@@ -117,7 +126,14 @@ async function recordHoverEvent(req, res) {
       }
 
       try {
+        const resolvedProjectId =
+          (hoverEvent.project_id ? String(hoverEvent.project_id).trim() : "") ||
+          (singleEvent.project_id ? String(singleEvent.project_id).trim() : "") ||
+          (req.query.project_id ? String(req.query.project_id).trim() : "") ||
+          null;
+
         const result = await heatmapService.recordHover({
+          project_id: resolvedProjectId,
           user_id,
           session_id,
           page_url,
@@ -157,6 +173,7 @@ async function recordHoverEvent(req, res) {
 async function recordScrollEvent(req, res) {
   try {
     const {
+      project_id,
       user_id,
       session_id,
       page_url,
@@ -169,7 +186,13 @@ async function recordScrollEvent(req, res) {
       return res.status(400).json({ error: "Missing required fields" });
     }
 
+    const resolvedProjectId =
+      (project_id ? String(project_id).trim() : "") ||
+      (req.query.project_id ? String(req.query.project_id).trim() : "") ||
+      null;
+
     const result = await heatmapService.recordScroll({
+      project_id: resolvedProjectId,
       user_id,
       session_id,
       page_url,
@@ -188,6 +211,7 @@ async function recordScrollEvent(req, res) {
 async function recordPageSnapshotEvent(req, res) {
   try {
     const {
+      project_id,
       user_id,
       session_id,
       page_url,
@@ -205,7 +229,13 @@ async function recordPageSnapshotEvent(req, res) {
       return res.status(400).json({ error: "Missing required snapshot fields" });
     }
 
+    const resolvedProjectId =
+      (project_id ? String(project_id).trim() : "") ||
+      (req.query.project_id ? String(req.query.project_id).trim() : "") ||
+      null;
+
     const result = await heatmapService.recordPageSnapshot({
+      project_id: resolvedProjectId,
       user_id,
       session_id,
       page_url,
@@ -228,7 +258,7 @@ async function recordPageSnapshotEvent(req, res) {
 
 async function getClickHeatmap(req, res) {
   try {
-    const { page_url, start_date, end_date, date, device_type, bucket_size } = req.query;
+    const { page_url, start_date, end_date, date, device_type, bucket_size, project_id } = req.query;
 
     if (!page_url) {
       return res.status(400).json({ error: "Missing page_url parameter" });
@@ -241,6 +271,7 @@ async function getClickHeatmap(req, res) {
 
     const heatmapData = await heatmapService.getClickHeatmap({
       page_url,
+      project_id: String(project_id || "").trim() || null,
       start_date: startDate,
       end_date: endDate,
       device_type: device_type || null,
@@ -256,7 +287,7 @@ async function getClickHeatmap(req, res) {
 
 async function getHoverHeatmap(req, res) {
   try {
-    const { page_url, start_date, end_date, date, device_type, bucket_size } = req.query;
+    const { page_url, start_date, end_date, date, device_type, bucket_size, project_id } = req.query;
 
     if (!page_url) {
       return res.status(400).json({ error: "Missing page_url parameter" });
@@ -269,6 +300,7 @@ async function getHoverHeatmap(req, res) {
 
     const heatmapData = await heatmapService.getHoverHeatmap({
       page_url,
+      project_id: String(project_id || "").trim() || null,
       start_date: startDate,
       end_date: endDate,
       device_type: device_type || null,
@@ -284,7 +316,8 @@ async function getHoverHeatmap(req, res) {
 
 async function getScrollHeatmap(req, res) {
   try {
-    const { page_url, start_date, end_date, date } = req.query;
+    const { page_url, start_date, end_date, date, project_id } = req.query;
+    const projectId = String(project_id || "").trim() || null;
 
     if (!page_url) {
       return res.status(400).json({ error: "Missing page_url parameter" });
@@ -296,6 +329,7 @@ async function getScrollHeatmap(req, res) {
       heatmapData = await heatmapService.getScrollHeatmapAggregated({
         page_url,
         date,
+        project_id: projectId,
       });
     } else {
       const startDate = start_date || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -303,6 +337,7 @@ async function getScrollHeatmap(req, res) {
 
       heatmapData = await heatmapService.getScrollHeatmap({
         page_url,
+        project_id: projectId,
         start_date: startDate,
         end_date: endDate,
       });
@@ -317,7 +352,7 @@ async function getScrollHeatmap(req, res) {
 
 async function getLatestPageSnapshot(req, res) {
   try {
-    const { page_url, start_date, end_date, date, device_type } = req.query;
+    const { page_url, start_date, end_date, date, device_type, project_id } = req.query;
 
     if (!page_url) {
       return res.status(400).json({ error: "Missing page_url parameter" });
@@ -330,6 +365,7 @@ async function getLatestPageSnapshot(req, res) {
 
     const snapshot = await heatmapService.getLatestPageSnapshot({
       page_url,
+      project_id: String(project_id || "").trim() || null,
       start_date: startDate,
       end_date: endDate,
       device_type: device_type || null,
@@ -346,10 +382,12 @@ async function getPageUrls(req, res) {
   try {
     const startDate = req.query.start_date || new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const endDate = req.query.end_date || new Date().toISOString();
+    const projectId = String(req.query.project_id || "").trim() || null;
 
     const pages = await heatmapService.getPageUrls({
       start_date: startDate,
       end_date: endDate,
+      project_id: projectId,
     });
 
     return res.status(200).json({ success: true, data: pages || [] });
@@ -361,7 +399,7 @@ async function getPageUrls(req, res) {
 
 async function getHeatmapStats(req, res) {
   try {
-    const { page_url, start_date, end_date } = req.query;
+    const { page_url, start_date, end_date, project_id } = req.query;
 
     if (!page_url) {
       return res.status(400).json({ error: "Missing page_url parameter" });
@@ -372,6 +410,7 @@ async function getHeatmapStats(req, res) {
 
     const stats = await heatmapService.getHeatmapStats({
       page_url,
+      project_id: String(project_id || "").trim() || null,
       start_date: startDate,
       end_date: endDate,
     });

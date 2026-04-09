@@ -85,12 +85,14 @@ async function ensureHeatmapTables() {
     await pool.query(`ALTER TABLE heatmap_clicks ADD COLUMN IF NOT EXISTS scroll_x FLOAT`);
     await pool.query(`ALTER TABLE heatmap_clicks ADD COLUMN IF NOT EXISTS scroll_y FLOAT`);
     await pool.query(`ALTER TABLE heatmap_clicks ADD COLUMN IF NOT EXISTS device_type TEXT`);
+    await pool.query(`ALTER TABLE heatmap_clicks ADD COLUMN IF NOT EXISTS project_id TEXT`);
 
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_heatmap_clicks_page_url ON heatmap_clicks(page_url)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_heatmap_clicks_session_id ON heatmap_clicks(session_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_heatmap_clicks_user_id ON heatmap_clicks(user_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_heatmap_clicks_created_at ON heatmap_clicks(created_at)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_heatmap_clicks_device_type ON heatmap_clicks(device_type)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_heatmap_clicks_project_id ON heatmap_clicks(project_id)`);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS heatmap_hovers (
@@ -130,12 +132,14 @@ async function ensureHeatmapTables() {
     await pool.query(`ALTER TABLE heatmap_hovers ADD COLUMN IF NOT EXISTS scroll_x FLOAT`);
     await pool.query(`ALTER TABLE heatmap_hovers ADD COLUMN IF NOT EXISTS scroll_y FLOAT`);
     await pool.query(`ALTER TABLE heatmap_hovers ADD COLUMN IF NOT EXISTS device_type TEXT`);
+    await pool.query(`ALTER TABLE heatmap_hovers ADD COLUMN IF NOT EXISTS project_id TEXT`);
 
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_heatmap_hovers_page_url ON heatmap_hovers(page_url)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_heatmap_hovers_session_id ON heatmap_hovers(session_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_heatmap_hovers_user_id ON heatmap_hovers(user_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_heatmap_hovers_created_at ON heatmap_hovers(created_at)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_heatmap_hovers_device_type ON heatmap_hovers(device_type)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_heatmap_hovers_project_id ON heatmap_hovers(project_id)`);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS heatmap_scrolls (
@@ -146,14 +150,18 @@ async function ensureHeatmapTables() {
         scroll_depth_percentage FLOAT NOT NULL,
         viewport_height INT,
         document_height INT,
+        project_id TEXT,
         created_at TIMESTAMPTZ DEFAULT NOW()
       )
     `);
+
+    await pool.query(`ALTER TABLE heatmap_scrolls ADD COLUMN IF NOT EXISTS project_id TEXT`);
 
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_heatmap_scrolls_page_url ON heatmap_scrolls(page_url)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_heatmap_scrolls_session_id ON heatmap_scrolls(session_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_heatmap_scrolls_user_id ON heatmap_scrolls(user_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_heatmap_scrolls_created_at ON heatmap_scrolls(created_at)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_heatmap_scrolls_project_id ON heatmap_scrolls(project_id)`);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS heatmap_page_snapshots (
@@ -180,9 +188,11 @@ async function ensureHeatmapTables() {
     await pool.query(`ALTER TABLE heatmap_page_snapshots ADD COLUMN IF NOT EXISTS scroll_x FLOAT`);
     await pool.query(`ALTER TABLE heatmap_page_snapshots ADD COLUMN IF NOT EXISTS scroll_y FLOAT`);
     await pool.query(`ALTER TABLE heatmap_page_snapshots ADD COLUMN IF NOT EXISTS device_type TEXT`);
+    await pool.query(`ALTER TABLE heatmap_page_snapshots ADD COLUMN IF NOT EXISTS project_id TEXT`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_heatmap_snapshots_page_url ON heatmap_page_snapshots(page_url)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_heatmap_snapshots_device_type ON heatmap_page_snapshots(device_type)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_heatmap_snapshots_captured_at ON heatmap_page_snapshots(captured_at)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_heatmap_snapshots_project_id ON heatmap_page_snapshots(project_id)`);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS heatmap_clicks_aggregated (
@@ -225,6 +235,7 @@ async function ensureHeatmapTables() {
 }
 
 async function recordClick({
+  project_id,
   user_id,
   session_id,
   page_url,
@@ -284,12 +295,13 @@ async function recordClick({
       document_height,
       scroll_x,
       scroll_y,
+      project_id,
       device_type,
       element_selector,
       element_text
     ) VALUES (
       $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-      $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
+      $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
     )
   `;
 
@@ -312,6 +324,7 @@ async function recordClick({
     safeDocumentHeight,
     safeScrollX,
     safeScrollY,
+    project_id ? String(project_id).trim() : null,
     device_type || null,
     element_selector || null,
     element_text || null,
@@ -328,6 +341,7 @@ async function recordClick({
 }
 
 async function recordHover({
+  project_id,
   user_id,
   session_id,
   page_url,
@@ -385,10 +399,11 @@ async function recordHover({
       document_height,
       scroll_x,
       scroll_y,
+      project_id,
       device_type
     ) VALUES (
       $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-      $11, $12, $13, $14, $15, $16, $17, $18, $19
+      $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
     )
   `;
 
@@ -411,6 +426,7 @@ async function recordHover({
     safeDocumentHeight,
     safeScrollX,
     safeScrollY,
+    project_id ? String(project_id).trim() : null,
     device_type || null,
   ];
 
@@ -424,6 +440,7 @@ async function recordHover({
 }
 
 async function recordScroll({
+  project_id,
   user_id,
   session_id,
   page_url,
@@ -442,8 +459,9 @@ async function recordScroll({
       page_url,
       scroll_depth_percentage,
       viewport_height,
-      document_height
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+      document_height,
+      project_id
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
   `;
 
   const values = [
@@ -454,6 +472,7 @@ async function recordScroll({
     scroll_depth_percentage,
     viewport_height,
     document_height,
+    project_id ? String(project_id).trim() : null,
   ];
 
   try {
@@ -467,6 +486,7 @@ async function recordScroll({
 }
 
 async function recordPageSnapshot({
+  project_id,
   user_id,
   session_id,
   page_url,
@@ -495,8 +515,9 @@ async function recordPageSnapshot({
       document_height,
       scroll_x,
       scroll_y,
+      project_id,
       device_type
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
   `;
 
   const values = [
@@ -511,6 +532,7 @@ async function recordPageSnapshot({
     toPositiveNumber(document_height),
     toNonNegativeNumber(scroll_x) ?? 0,
     toNonNegativeNumber(scroll_y) ?? 0,
+    project_id ? String(project_id).trim() : null,
     device_type || null,
   ];
 
@@ -572,6 +594,7 @@ async function aggregateScroll(page_url, scroll_depth_percentage) {
 
 async function getClickHeatmap({
   page_url,
+  project_id = null,
   start_date,
   end_date,
   device_type = null,
@@ -608,6 +631,7 @@ async function getClickHeatmap({
       AND created_at >= $2
       AND created_at <= $3
       AND ($5::text IS NULL OR device_type = $5)
+      AND ($6::text IS NULL OR project_id = $6)
       AND COALESCE(
         page_x_percent,
         CASE WHEN document_width > 0 THEN page_x / document_width ELSE NULL END,
@@ -622,10 +646,10 @@ async function getClickHeatmap({
       ) IS NOT NULL
     GROUP BY 1, 2
     ORDER BY click_count DESC
-    LIMIT $6
+    LIMIT $7
   `;
 
-  const values = [page_url, start_date, end_date, safeBucketSize, device_type, limit];
+  const values = [page_url, start_date, end_date, safeBucketSize, device_type, project_id, limit];
 
   try {
     const result = await pool.query(query, values);
@@ -638,6 +662,7 @@ async function getClickHeatmap({
 
 async function getHoverHeatmap({
   page_url,
+  project_id = null,
   start_date,
   end_date,
   device_type = null,
@@ -674,6 +699,7 @@ async function getHoverHeatmap({
       AND created_at >= $2
       AND created_at <= $3
       AND ($5::text IS NULL OR device_type = $5)
+      AND ($6::text IS NULL OR project_id = $6)
       AND COALESCE(
         page_x_percent,
         CASE WHEN document_width > 0 THEN page_x / document_width ELSE NULL END,
@@ -688,10 +714,10 @@ async function getHoverHeatmap({
       ) IS NOT NULL
     GROUP BY 1, 2
     ORDER BY hover_count DESC
-    LIMIT $6
+    LIMIT $7
   `;
 
-  const values = [page_url, start_date, end_date, safeBucketSize, device_type, limit];
+  const values = [page_url, start_date, end_date, safeBucketSize, device_type, project_id, limit];
 
   try {
     const result = await pool.query(query, values);
@@ -727,7 +753,7 @@ async function getClickHeatmapAggregated({ page_url, date }) {
   }
 }
 
-async function getScrollHeatmap({ page_url, start_date, end_date }) {
+async function getScrollHeatmap({ page_url, project_id = null, start_date, end_date }) {
   await ensureHeatmapTables();
 
   const query = `
@@ -739,11 +765,12 @@ async function getScrollHeatmap({ page_url, start_date, end_date }) {
     WHERE page_url = $1
       AND created_at >= $2
       AND created_at <= $3
+      AND ($4::text IS NULL OR project_id = $4)
     GROUP BY scroll_depth_percentage
     ORDER BY scroll_depth_percentage
   `;
 
-  const values = [page_url, start_date, end_date];
+  const values = [page_url, start_date, end_date, project_id];
 
   try {
     const result = await pool.query(query, values);
@@ -754,8 +781,13 @@ async function getScrollHeatmap({ page_url, start_date, end_date }) {
   }
 }
 
-async function getScrollHeatmapAggregated({ page_url, date }) {
+async function getScrollHeatmapAggregated({ page_url, project_id = null, date }) {
   await ensureHeatmapTables();
+
+  if (project_id) {
+    // Aggregated scroll table is not project-scoped; use raw table for strict project filtering.
+    return getScrollHeatmap({ page_url, project_id, start_date: `${date}T00:00:00Z`, end_date: `${date}T23:59:59Z` });
+  }
 
   const query = `
     SELECT
@@ -779,7 +811,7 @@ async function getScrollHeatmapAggregated({ page_url, date }) {
   }
 }
 
-async function getLatestPageSnapshot({ page_url, start_date, end_date, device_type = null }) {
+async function getLatestPageSnapshot({ page_url, project_id = null, start_date, end_date, device_type = null }) {
   await ensureHeatmapTables();
 
   const query = `
@@ -800,11 +832,12 @@ async function getLatestPageSnapshot({ page_url, start_date, end_date, device_ty
       AND captured_at >= $2
       AND captured_at <= $3
       AND ($4::text IS NULL OR device_type = $4)
+      AND ($5::text IS NULL OR project_id = $5)
     ORDER BY captured_at DESC
     LIMIT 1
   `;
 
-  const values = [page_url, start_date, end_date, device_type];
+  const values = [page_url, start_date, end_date, device_type, project_id];
 
   try {
     const result = await pool.query(query, values);
@@ -815,29 +848,29 @@ async function getLatestPageSnapshot({ page_url, start_date, end_date, device_ty
   }
 }
 
-async function getPageUrls({ start_date, end_date }) {
+async function getPageUrls({ start_date, end_date, project_id = null }) {
   await ensureHeatmapTables();
 
   const query = `
     SELECT DISTINCT page_url
     FROM heatmap_clicks
-    WHERE created_at >= $1 AND created_at <= $2
+    WHERE created_at >= $1 AND created_at <= $2 AND ($3::text IS NULL OR project_id = $3)
     UNION
     SELECT DISTINCT page_url
     FROM heatmap_scrolls
-    WHERE created_at >= $1 AND created_at <= $2
+    WHERE created_at >= $1 AND created_at <= $2 AND ($3::text IS NULL OR project_id = $3)
     UNION
     SELECT DISTINCT page_url
     FROM heatmap_hovers
-    WHERE created_at >= $1 AND created_at <= $2
+    WHERE created_at >= $1 AND created_at <= $2 AND ($3::text IS NULL OR project_id = $3)
     UNION
     SELECT DISTINCT page_url
     FROM heatmap_page_snapshots
-    WHERE captured_at >= $1 AND captured_at <= $2
+    WHERE captured_at >= $1 AND captured_at <= $2 AND ($3::text IS NULL OR project_id = $3)
     ORDER BY page_url
   `;
 
-  const values = [start_date, end_date];
+  const values = [start_date, end_date, project_id];
 
   try {
     const result = await pool.query(query, values);
@@ -848,18 +881,18 @@ async function getPageUrls({ start_date, end_date }) {
   }
 }
 
-async function getHeatmapStats({ page_url, start_date, end_date }) {
+async function getHeatmapStats({ page_url, project_id = null, start_date, end_date }) {
   await ensureHeatmapTables();
 
-  const clickQuery = `SELECT COUNT(*) as total FROM heatmap_clicks WHERE page_url = $1 AND created_at >= $2 AND created_at <= $3`;
-  const scrollQuery = `SELECT COUNT(*) as total FROM heatmap_scrolls WHERE page_url = $1 AND created_at >= $2 AND created_at <= $3`;
-  const hoverQuery = `SELECT COUNT(*) as total FROM heatmap_hovers WHERE page_url = $1 AND created_at >= $2 AND created_at <= $3`;
-  const snapshotQuery = `SELECT COUNT(*) as total FROM heatmap_page_snapshots WHERE page_url = $1 AND captured_at >= $2 AND captured_at <= $3`;
-  const uniqueUsersClickQuery = `SELECT COUNT(DISTINCT user_id) as total FROM heatmap_clicks WHERE page_url = $1 AND created_at >= $2 AND created_at <= $3`;
-  const uniqueUsersScrollQuery = `SELECT COUNT(DISTINCT user_id) as total FROM heatmap_scrolls WHERE page_url = $1 AND created_at >= $2 AND created_at <= $3`;
-  const uniqueUsersHoverQuery = `SELECT COUNT(DISTINCT user_id) as total FROM heatmap_hovers WHERE page_url = $1 AND created_at >= $2 AND created_at <= $3`;
+  const clickQuery = `SELECT COUNT(*) as total FROM heatmap_clicks WHERE page_url = $1 AND created_at >= $2 AND created_at <= $3 AND ($4::text IS NULL OR project_id = $4)`;
+  const scrollQuery = `SELECT COUNT(*) as total FROM heatmap_scrolls WHERE page_url = $1 AND created_at >= $2 AND created_at <= $3 AND ($4::text IS NULL OR project_id = $4)`;
+  const hoverQuery = `SELECT COUNT(*) as total FROM heatmap_hovers WHERE page_url = $1 AND created_at >= $2 AND created_at <= $3 AND ($4::text IS NULL OR project_id = $4)`;
+  const snapshotQuery = `SELECT COUNT(*) as total FROM heatmap_page_snapshots WHERE page_url = $1 AND captured_at >= $2 AND captured_at <= $3 AND ($4::text IS NULL OR project_id = $4)`;
+  const uniqueUsersClickQuery = `SELECT COUNT(DISTINCT user_id) as total FROM heatmap_clicks WHERE page_url = $1 AND created_at >= $2 AND created_at <= $3 AND ($4::text IS NULL OR project_id = $4)`;
+  const uniqueUsersScrollQuery = `SELECT COUNT(DISTINCT user_id) as total FROM heatmap_scrolls WHERE page_url = $1 AND created_at >= $2 AND created_at <= $3 AND ($4::text IS NULL OR project_id = $4)`;
+  const uniqueUsersHoverQuery = `SELECT COUNT(DISTINCT user_id) as total FROM heatmap_hovers WHERE page_url = $1 AND created_at >= $2 AND created_at <= $3 AND ($4::text IS NULL OR project_id = $4)`;
 
-  const values = [page_url, start_date, end_date];
+  const values = [page_url, start_date, end_date, project_id];
 
   try {
     const [
